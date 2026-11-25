@@ -1,6 +1,6 @@
 import {useEffect,useState} from 'react';import {api} from './api.js';
 import Shell from './components/Shell.jsx';import Icon from './components/Icon.jsx';import Modal from './components/Modal.jsx';
-import PasswordModal from './components/PasswordModal.jsx';import Confirm from './components/Confirm.jsx';import {genPassword,fmtDateTime} from './utils.js';
+import Pagination,{usePaged} from './components/Pagination.jsx';import PasswordModal from './components/PasswordModal.jsx';import Confirm from './components/Confirm.jsx';import {genPassword,fmtDateTime} from './utils.js';
 const blank=()=>({name:'',username:'',password:genPassword(),role:'user'});
 export default function AdminUsers({user,onLogout,theme,onTheme}){
  const [users,setUsers]=useState([]),[loading,setLoading]=useState(true),[q,setQ]=useState(''),[role,setRole]=useState('all');
@@ -14,6 +14,7 @@ export default function AdminUsers({user,onLogout,theme,onTheme}){
    navigator.clipboard?.writeText(`Username: ${add.username}\nPassword: ${add.password}`).catch(()=>{});
    say('User created – credentials copied to clipboard');setAdd(null);}catch(x){setErr(x.message);}};
  const list=users.filter(u=>(role==='all'||u.role===role)&&(u.name+u.username).toLowerCase().includes(q.toLowerCase()));
+ const pg=usePaged(list,{size:10,key:q+'|'+role,store:'users'});
  const sideNav=<nav className="tree"><div className="navlabel">ADMIN</div><button className="nitem on"><Icon n="users"/><span>User management</span><em>{users.length}</em></button></nav>;
  return <Shell user={user} nav={sideNav} navKey="admin" onLogout={onLogout} onPassword={()=>setSelf(true)} theme={theme} onTheme={onTheme}>
   <div className="phead"><div><h1>User management</h1><p className="muted">Create accounts, reset passwords and control access.</p></div>
@@ -23,7 +24,7 @@ export default function AdminUsers({user,onLogout,theme,onTheme}){
   <div className="filters"><div className="search"><Icon n="search"/><input placeholder="Search name or username" value={q} onChange={e=>setQ(e.target.value)}/></div>
    <select value={role} onChange={e=>setRole(e.target.value)}><option value="all">All roles</option><option value="user">Users</option><option value="admin">Admins</option></select></div>
   {loading?<div className="empty">Loading…</div>:<div className="table"><div className="trh"><span>User</span><span>Role</span><span>Tasks</span><span>Last login</span><span>Status</span><span className="r">Actions</span></div>
-   {list.map(u=><div className="tr" key={u.id}>
+   {pg.rows.map(u=><div className="tr" key={u.id}>
     <span className="ucell"><div className="avatar sm">{(u.name||'U')[0].toUpperCase()}</div><div><b>{u.name}</b><small>@{u.username}</small></div></span>
     <span><span className={'tag '+(u.role==='admin'?'st-inprogress':'')}>{u.role}</span></span>
     <span>{u.tasks}</span><span className="muted">{u.lastLogin?fmtDateTime(u.lastLogin):'Never'}</span>
@@ -32,6 +33,7 @@ export default function AdminUsers({user,onLogout,theme,onTheme}){
      {u.id!==user.id&&<><button className="btn small" onClick={()=>patch(u,{active:!u.active})}>{u.active?'Disable':'Enable'}</button>
      <button className="btn small danger" onClick={()=>setAsk({title:'Delete user',message:`${u.username} and all of their tasks will be permanently deleted.`,onYes:()=>del(u)})}>Delete</button></>}</span></div>)}
    {!list.length&&<div className="empty">No users found.</div>}</div>}
+  <Pagination {...pg} label="users"/>
   {add&&<Modal title="Add user" onClose={()=>setAdd(null)}><form className="form" onSubmit={create}>
    <label>Full name<input value={add.name} onChange={e=>setAdd({...add,name:e.target.value})} autoFocus/></label>
    <div className="grid2"><label>Username<input required value={add.username} onChange={e=>setAdd({...add,username:e.target.value})}/></label>

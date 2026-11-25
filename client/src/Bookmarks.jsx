@@ -1,5 +1,5 @@
 import {useEffect,useMemo,useState} from 'react';import {api} from './api.js';
-import Icon from './components/Icon.jsx';import Modal from './components/Modal.jsx';import {host,hue} from './utils.js';
+import Icon from './components/Icon.jsx';import Modal from './components/Modal.jsx';import Pagination,{usePaged} from './components/Pagination.jsx';import {host,hue} from './utils.js';
 
 function BookmarkModal({item,cats,onSave,onClose}){
  const [f,setF]=useState({url:'',title:'',description:'',category:'General',favorite:false,...item}),[err,setErr]=useState(''),[busy,setBusy]=useState(false);
@@ -22,6 +22,7 @@ export default function Bookmarks({say,ask,onShare}){
  const needle=q.toLowerCase();
  const shown=list.filter(b=>(cat==='all'||b.category===cat)&&(!favOnly||b.favorite)&&(!needle||(b.title+' '+b.url+' '+b.description+' '+b.category).toLowerCase().includes(needle)))
   .sort((a,b)=>sort==='visits'?b.visits-a.visits:sort==='recent'?String(b.createdAt).localeCompare(String(a.createdAt)):sort==='az'?a.title.localeCompare(b.title):(b.favorite-a.favorite)||(b.visits-a.visits)||a.title.localeCompare(b.title));
+ const pg=usePaged(shown,{size:12,key:q+'|'+cat+'|'+sort+'|'+favOnly,store:'bookmarks'});
  const save=async(d,old)=>{
   if(old?._id){const u=await api('/bookmarks/'+old._id,{method:'PUT',body:d});setList(p=>p.map(x=>x._id===u._id?u:x));say('Bookmark updated');}
   else{const c=await api('/bookmarks',{method:'POST',body:d});setList(p=>[c,...p]);say('Bookmark added');}
@@ -38,7 +39,7 @@ export default function Bookmarks({say,ask,onShare}){
    <button className={'btn'+(favOnly?' primary':'')} onClick={()=>setFavOnly(!favOnly)}><Icon n="star" f={favOnly}/> Important</button></div>
   {loading?<div className="empty">Loading…</div>:!list.length?<div className="empty"><b>No bookmarks yet</b><p>Save the websites you use every day.</p></div>
   :!shown.length?<div className="empty">No bookmarks match.</div>
-  :<div className="vgrid">{shown.map(b=><div className="vcard bm" key={b._id}>
+  :<><div className="vgrid">{pg.rows.map(b=><div className="vcard bm" key={b._id}>
    <div className="vtop" onClick={()=>open(b)} style={{cursor:'pointer'}}><div className="vav" style={{background:`hsl(${hue(host(b.url))} 58% 46%)`}}>{(b.title||'?')[0].toUpperCase()}</div>
     <div className="vmeta"><b>{b.title}</b><small>{host(b.url)}</small></div>
     <button className={'star'+(b.favorite?' on':'')} onClick={e=>{e.stopPropagation();fav(b);}}><Icon n="star" f={b.favorite}/></button></div>
@@ -47,7 +48,7 @@ export default function Bookmarks({say,ask,onShare}){
     <button className="iconbtn dark" title="Open" onClick={()=>open(b)}><Icon n="link"/></button>
     <button className="iconbtn dark" title="Share" onClick={()=>onShare(b)}><Icon n="share"/></button>
     <button className="iconbtn dark" title="Edit" onClick={()=>setModal(b)}><Icon n="edit"/></button>
-    <button className="iconbtn dark" title="Delete" onClick={()=>del(b)}><Icon n="trash"/></button></div></div>)}</div>}
+    <button className="iconbtn dark" title="Delete" onClick={()=>del(b)}><Icon n="trash"/></button></div></div>)}</div><Pagination {...pg} label="bookmarks"/></>}
   {modal&&<BookmarkModal item={modal._id?modal:null} cats={cats} onSave={d=>save(d,modal)} onClose={()=>setModal(null)}/>}
  </>;
 }

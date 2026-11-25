@@ -36,6 +36,6 @@ r.delete('/:id',async(req,res)=>{
  const u=await User.findById(req.params.id);if(!u)return res.status(404).json({message:'Not found'});
  if(String(u._id)===String(req.user._id))return res.status(400).json({message:'You cannot delete yourself'});
  if(await lastAdmin(u))return res.status(400).json({message:'Cannot delete the last admin'});
- await Task.deleteMany({user:u._id});await VaultItem.deleteMany({user:u._id});await Note.deleteMany({user:u._id});await Bookmark.deleteMany({user:u._id});await Share.deleteMany({$or:[{from:u._id},{to:u._id}]});await u.deleteOne();res.json({ok:true});
+ await Task.deleteMany({user:u._id});await VaultItem.deleteMany({user:u._id});await Note.deleteMany({user:u._id});await Bookmark.deleteMany({user:u._id});await Share.deleteMany({$or:[{from:u._id},{to:u._id}]});{const Team=require('../models/Team');const own=await Team.find({owner:u._id}).select('_id').lean();await Share.deleteMany({team:{$in:own.map(t=>t._id)}});await Team.deleteMany({owner:u._id});await Team.updateMany({},{$pull:{members:{user:u._id}}});}await require('../models/Activity').deleteMany({$or:[{actor:u._id},{owner:u._id}]});await require('../models/Message').deleteMany({$or:[{sender:u._id},{owner:u._id},{pair:u._id}]});await require('../models/ChatRead').deleteMany({user:u._id});await u.deleteOne();res.json({ok:true});
 });
 module.exports=r;

@@ -36,6 +36,13 @@ const P={
  share:<><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><path d="m8.6 13.5 6.8 4M15.4 6.5l-6.8 4"/></>,
  upload:<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>,
  inbox:<path d="M22 12h-6l-2 3h-4l-2-3H2M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.7 1.1z"/>,
+ chat:<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>,
+ send:<path d="m22 2-7 20-4-9-9-4zM22 2 11 13"/>,
+ reply:<path d="M9 14 4 9l5-5M4 9h10a6 6 0 0 1 6 6v3"/>,
+ left:<path d="m15 18-6-6 6-6"/>,
+ right:<path d="m9 18 6-6-6-6"/>,
+ filter:<path d="M22 3H2l8 9.5V19l4 2v-8.5z"/>,
+ more:<><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></>,
  list:<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>
 };
 export default function Icon({n,s=16,f}){return <svg width={s} height={s} viewBox="0 0 24 24" fill={f?'currentColor':'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{P[n]}</svg>;}

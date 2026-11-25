@@ -1,5 +1,5 @@
 import {useEffect,useMemo,useState} from 'react';import {api} from './api.js';
-import Icon from './components/Icon.jsx';import Modal from './components/Modal.jsx';import {fmtDateTime} from './utils.js';
+import Icon from './components/Icon.jsx';import Modal from './components/Modal.jsx';import Pagination,{usePaged} from './components/Pagination.jsx';import {fmtDateTime} from './utils.js';
 const COLORS=['default','yellow','green','blue','pink','purple'];
 
 function NoteModal({item,cats,onSave,onClose}){
@@ -25,6 +25,8 @@ export default function Notes({say,ask,onShare}){
  const needle=q.toLowerCase();
  const shown=list.filter(n=>(cat==='all'||n.category===cat)&&(!needle||(n.title+' '+n.content+' '+n.category).toLowerCase().includes(needle)))
   .sort((a,b)=>(b.pinned-a.pinned)||String(b.updatedAt).localeCompare(String(a.updatedAt)));
+
+ const pg=usePaged(shown,{size:12,key:q+'|'+cat,store:'notes'});
  const rep=u=>setList(p=>p.map(x=>x._id===u._id?u:x));
  const save=async(d,old)=>{
   if(old?._id){rep(await api('/notes/'+old._id,{method:'PUT',body:d}));say('Note saved');}
@@ -40,14 +42,14 @@ export default function Notes({say,ask,onShare}){
    <select value={cat} onChange={e=>setCat(e.target.value)}><option value="all">All categories</option>{cats.map(c=><option key={c}>{c}</option>)}</select></div>
   {loading?<div className="empty">Loading…</div>:!list.length?<div className="empty"><b>No notes yet</b><p>Tap “Add note” to write your first one.</p></div>
   :!shown.length?<div className="empty">No notes match.</div>
-  :<div className="vgrid">{shown.map(n=><div className={'vcard note nc-'+(n.color||'default')} key={n._id} onClick={()=>setModal(n)}>
+  :<><div className="vgrid">{pg.rows.map(n=><div className={'vcard note nc-'+(n.color||'default')} key={n._id} onClick={()=>setModal(n)}>
    <div className="vtop"><div className="vmeta"><b>{n.title||'Untitled note'}</b><small>{fmtDateTime(n.updatedAt)}</small></div>
     <button className={'star'+(n.pinned?' on':'')} title={n.pinned?'Unpin':'Pin'} onClick={e=>{e.stopPropagation();pin(n);}}><Icon n="star" f={n.pinned}/></button></div>
    {n.content&&<p className="vnotes">{n.content.slice(0,240)}{n.content.length>240?'…':''}</p>}
    <div className="vfoot"><span className="tag">{n.category}</span><span className="grow"/>
     <button className="iconbtn dark" title="Share" onClick={e=>{e.stopPropagation();onShare(n);}}><Icon n="share"/></button>
     <button className="iconbtn dark" title="Edit" onClick={e=>{e.stopPropagation();setModal(n);}}><Icon n="edit"/></button>
-    <button className="iconbtn dark" title="Delete" onClick={e=>{e.stopPropagation();del(n);}}><Icon n="trash"/></button></div></div>)}</div>}
+    <button className="iconbtn dark" title="Delete" onClick={e=>{e.stopPropagation();del(n);}}><Icon n="trash"/></button></div></div>)}</div><Pagination {...pg} label="notes"/></>}
   {modal&&<NoteModal item={modal._id?modal:null} cats={cats} onSave={d=>save(d,modal)} onClose={()=>setModal(null)}/>}
  </>;
 }

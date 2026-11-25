@@ -55,3 +55,17 @@ export const copyText=async(text,say,label='Copied')=>{
   clearTimeout(clipTimer);clipTimer=setTimeout(()=>{if(document.hasFocus())navigator.clipboard.writeText('').catch(()=>{});},20000);
  }catch(e){say('Copy failed');}
 };
+
+export const fmtTime=i=>new Date(i).toLocaleTimeString('en-US',{hour:'numeric',minute:'2-digit'});
+// "Today", "Yesterday" or "Mon, Nov 24"
+export const dayLabel=i=>{
+ const d=new Date(i),n=new Date(),a=new Date(d.getFullYear(),d.getMonth(),d.getDate()),b=new Date(n.getFullYear(),n.getMonth(),n.getDate());
+ const diff=Math.round((b-a)/864e5);
+ if(diff===0)return'Today';if(diff===1)return'Yesterday';
+ return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric',...(d.getFullYear()!==n.getFullYear()?{year:'numeric'}:{})});
+};
+export const dayKey=i=>{const d=new Date(i);return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;};
+export const ago=i=>{const s=Math.round((Date.now()-new Date(i))/1000);if(s<60)return'just now';if(s<3600)return Math.floor(s/60)+' min ago';if(s<86400)return Math.floor(s/3600)+' h ago';
+ return new Date(i).toLocaleString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});};
+// stable key for a chat reference (used to highlight the open conversation)
+export const chatKey=r=>r?[r.type,r.team||r.user||r.item||r.owner||'',r.kind||'',r.year??'',r.month??'',r.project??''].join('|'):'';

@@ -1,5 +1,5 @@
 import {useEffect,useMemo,useRef,useState} from 'react';
-import Icon from './components/Icon.jsx';import Modal from './components/Modal.jsx';
+import Icon from './components/Icon.jsx';import Modal from './components/Modal.jsx';import Pagination,{usePaged} from './components/Pagination.jsx';
 import {strength,genPass,copyText,fmtDateTime,host,safeUrl,hue} from './utils.js';
 
 function Meter({value}){const s=strength(value);return value?<div className="meter"><div className="bar slim"><i style={{width:s.pct+'%',background:s.color}}/></div><small style={{color:s.color,fontWeight:600}}>{s.label}</small></div>:null;}
@@ -73,6 +73,7 @@ export default function Vault({vault,say,ask}){
  const shown=all.filter(i=>(cat==='all'||i.category===cat)&&(flt==='all'||(flt==='fav'&&i.favorite)||(flt==='weak'&&weak(i))||(flt==='reused'&&reused(i)))
   &&(!needle||[i.title,i.username,i.url,i.category,i.notes,i.content].join(' ').toLowerCase().includes(needle)))
   .sort((a,b)=>(b.favorite-a.favorite)||a.title.localeCompare(b.title));
+ const pg=usePaged(shown,{size:12,key:q+'|'+cat+'|'+flt,store:'vault'});
  const save=async(f,old)=>{await vault.save({id:old?.id,type,data:f});say(old?.id?'Changes saved':'Added to vault');};
  const fav=i=>vault.save({id:i.id,type,data:{...i,favorite:!i.favorite}}).catch(e=>say(e.message));
  const del=i=>ask({title:'Delete entry',message:`“${i.title}” will be permanently deleted from your vault.`,onYes:()=>vault.remove(i.id).then(()=>say('Deleted')).catch(e=>say(e.message))});
@@ -88,13 +89,13 @@ export default function Vault({vault,say,ask}){
    <select value={flt} onChange={e=>setFlt(e.target.value)}><option value="all">Show all</option><option value="fav">Favorites</option>{isP&&<><option value="weak">Weak only</option><option value="reused">Reused only</option></>}</select></div>
   {!all.length?<div className="empty"><b>{isP?'No saved passwords yet':'No secure notes yet'}</b><p>Click “{isP?'Add password':'Add note'}” to save your first one.</p></div>
   :!shown.length?<div className="empty">Nothing matches your search.</div>
-  :<div className="vgrid">{shown.map(i=>isP
+  :<><div className="vgrid">{pg.rows.map(i=>isP
    ?<PassCard key={i.id} i={i} weak={weak(i)} reused={reused(i)} say={say} onEdit={()=>setModal(i)} onDel={()=>del(i)} onFav={()=>fav(i)}/>
    :<div className="vcard note" key={i.id} onClick={()=>setModal(i)}>
      <div className="vtop"><div className="vav" style={{background:`hsl(${hue(i.title)} 58% 46%)`}}><Icon n="note"/></div><div className="vmeta"><b>{i.title}</b><small>{fmtDateTime(i.updatedAt)}</small></div>
       <button className={'star'+(i.favorite?' on':'')} onClick={e=>{e.stopPropagation();fav(i);}}><Icon n="star" f={i.favorite}/></button></div>
      <p className="vnotes">{i.content.slice(0,180)}{i.content.length>180?'…':''}</p>
-     <div className="vfoot"><span className="tag">{i.category}</span><span className="grow"/><button className="iconbtn dark" title="Delete" onClick={e=>{e.stopPropagation();del(i);}}><Icon n="trash"/></button></div></div>)}</div>}
+     <div className="vfoot"><span className="tag">{i.category}</span><span className="grow"/><button className="iconbtn dark" title="Delete" onClick={e=>{e.stopPropagation();del(i);}}><Icon n="trash"/></button></div></div>)}</div><Pagination {...pg} label="entries"/></>}
   {modal&&<ItemModal type={type} item={modal.id?modal:null} cats={cats} onSave={f=>save(f,modal)} onClose={()=>setModal(null)}/>}
  </>;
 }
