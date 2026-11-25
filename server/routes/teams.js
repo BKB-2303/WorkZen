@@ -11,7 +11,7 @@ const isOwner=(t,uid)=>same(t.owner,uid);
 const canManage=(t,uid)=>isOwner(t,uid)||role(t,uid)==='admin';
 const load=async(id,me)=>{const t=await Team.findOne({_id:id,'members.user':me});if(!t)throw Object.assign(new Error('Team not found'),{code:404});return t;};
 const guard=fn=>wrap(async(req,res,next)=>{try{await fn(req,res,next);}catch(e){if(e.code===404)return res.status(404).json({message:e.message});throw e;}});
-const validUsers=async ids=>ids.length?(await User.find({_id:{$in:ids},role:'user',active:{$ne:false}}).select('_id').lean()).map(u=>u._id):[];
+const validUsers=async ids=>ids.length?(await User.find({_id:{$in:ids},...require('../utils/people').normal()}).select('_id').lean()).map(u=>u._id):[];
 const ids=a=>[...new Set((Array.isArray(a)?a:[]).map(String))].slice(0,100);
 
 const view=async(teams,me)=>{

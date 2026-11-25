@@ -6,9 +6,10 @@ export default function AdminUsers({user,onLogout,theme,onTheme}){
  const [users,setUsers]=useState([]),[loading,setLoading]=useState(true),[q,setQ]=useState(''),[role,setRole]=useState('all');
  const [add,setAdd]=useState(null),[reset,setReset]=useState(null),[self,setSelf]=useState(false),[ask,setAsk]=useState(null),[toast,setToast]=useState(''),[err,setErr]=useState('');
  const say=m=>{setToast(m);setTimeout(()=>setToast(''),2500);};
+ const refresh=()=>api('/users').then(setUsers).catch(()=>{});
  useEffect(()=>{api('/users').then(setUsers).finally(()=>setLoading(false));},[]);
- const patch=async(u,body)=>{try{const n=await api('/users/'+u.id,{method:'PUT',body});setUsers(p=>p.map(x=>x.id===n.id?{...x,...n,tasks:x.tasks,lastLogin:x.lastLogin}:x));say('User updated');}catch(e){say(e.message);}};
- const del=async u=>{try{await api('/users/'+u.id,{method:'DELETE'});setUsers(p=>p.filter(x=>x.id!==u.id));say('User deleted');}catch(e){say(e.message);}};
+ const patch=async(u,body)=>{try{const n=await api('/users/'+u.id,{method:'PUT',body});setUsers(p=>p.map(x=>x.id===n.id?{...x,...n,tasks:x.tasks,lastLogin:x.lastLogin}:x));say('User updated');}catch(e){say(e.message);refresh();}};
+ const del=async u=>{try{await api('/users/'+u.id,{method:'DELETE'});setUsers(p=>p.filter(x=>x.id!==u.id));say('User deleted');}catch(e){say(e.message);refresh();}};
  const create=async e=>{e.preventDefault();setErr('');
   try{const n=await api('/users',{method:'POST',body:add});setUsers(p=>[...p,n]);
    navigator.clipboard?.writeText(`Username: ${add.username}\nPassword: ${add.password}`).catch(()=>{});

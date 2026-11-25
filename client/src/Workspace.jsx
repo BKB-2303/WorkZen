@@ -102,7 +102,7 @@ export default function Workspace({user,onLogout,theme,onTheme}){
    {nav.view==='work'&&nav.y===y&&<div className="sub">{Object.keys(tree[y]).map(Number).sort((a,b)=>b-a).map(m=>
     <button key={m} className={'nitem small'+(nav.m===m?' on':'')} onClick={()=>go('work',y,m)}><span>{MONTHS[m]}</span><em>{tree[y][m].length}</em></button>)}</div>}</div>)}
   <div className="kbd">Press <kbd>N</kbd> new task · <kbd>/</kbd> search</div>
-  <div className="ver">WorkZen v7.1 · Chat & History</div></nav>;
+  <div className="ver">WorkZen v7.2 · Chat & History</div></nav>;
 
  const tab=(k,l,i,fn)=><button key={k} className={'btab'+((k==='work'?(nav.view==='work'||smart):nav.view===k)?' on':'')} onClick={fn}><Icon n={i} s={20}/><span>{l}</span></button>;
  const bottom=<nav className="bottombar">{tab('dashboard','Home','home',()=>go('dashboard'))}{tab('work','Tasks','list',()=>go('work'))}

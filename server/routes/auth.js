@@ -3,7 +3,7 @@ const User=require('../models/User');const {auth}=require('../middleware/auth');
 const pub=u=>({id:u._id,name:u.name||u.username,username:u.username,role:u.role});
 r.post('/login',async(req,res)=>{
  const {username,password}=req.body||{};
- const u=await User.findOne({username:String(username||'').trim()});
+ const u=await User.findOne(require('../utils/people').byUsername(username));
  if(!u||!(await bcrypt.compare(String(password||''),u.password)))return res.status(400).json({message:'Invalid username or password'});
  if(u.active===false)return res.status(403).json({message:'Account is disabled. Contact admin.'});
  await User.updateOne({_id:u._id},{lastLogin:new Date()});

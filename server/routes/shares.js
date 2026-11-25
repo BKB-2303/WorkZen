@@ -34,7 +34,7 @@ const OWNER_ONLY=['shared','unshared','permission','copied'];
 
 // people I can share with (other active normal users)
 r.get('/users',wrap(async(req,res)=>{
- const us=await User.find({role:'user',active:{$ne:false},_id:{$ne:req.user._id}}).sort({name:1,username:1}).limit(500).lean();
+ const us=await User.find({...require('../utils/people').normal(),_id:{$ne:req.user._id}}).sort({name:1,username:1}).limit(500).lean();
  res.json(us.map(person));
 }));
 
@@ -47,7 +47,7 @@ r.post('/',wrap(async(req,res)=>{
  const uids=[...new Set((Array.isArray(to)?to:[]).map(String))].filter(x=>x!==String(me)).slice(0,100);
  const tids=[...new Set((Array.isArray(teams)?teams:[]).map(String))].slice(0,50);
  if(!uids.length&&!tids.length)throw new Error('Choose at least one person or team');
- const users=uids.length?await User.find({_id:{$in:uids},role:'user',active:{$ne:false}}).select('_id name username').lean():[];
+ const users=uids.length?await User.find({_id:{$in:uids},...require('../utils/people').normal()}).select('_id name username').lean():[];
  const ts=tids.length?await Team.find({_id:{$in:tids},'members.user':me}).select('_id name').lean():[];
  if(!users.length&&!ts.length)throw new Error('Those people or teams are not available');
  let added=0,updated=0;
