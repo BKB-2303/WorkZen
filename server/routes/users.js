@@ -1,5 +1,5 @@
 const r=require('express').Router();const bcrypt=require('bcryptjs');
-const User=require('../models/User');const Task=require('../models/Task');const VaultItem=require('../models/VaultItem');const Note=require('../models/Note');const Bookmark=require('../models/Bookmark');
+const User=require('../models/User');const Task=require('../models/Task');const VaultItem=require('../models/VaultItem');const Note=require('../models/Note');const Bookmark=require('../models/Bookmark');const Share=require('../models/Share');
 const {auth,adminOnly}=require('../middleware/auth');
 r.use(auth,adminOnly);
 const view=(u,tasks=0)=>({id:u._id,name:u.name||u.username,username:u.username,role:u.role,active:u.active!==false,tasks,createdAt:u.createdAt,lastLogin:u.lastLogin||null});
@@ -36,6 +36,6 @@ r.delete('/:id',async(req,res)=>{
  const u=await User.findById(req.params.id);if(!u)return res.status(404).json({message:'Not found'});
  if(String(u._id)===String(req.user._id))return res.status(400).json({message:'You cannot delete yourself'});
  if(await lastAdmin(u))return res.status(400).json({message:'Cannot delete the last admin'});
- await Task.deleteMany({user:u._id});await VaultItem.deleteMany({user:u._id});await Note.deleteMany({user:u._id});await Bookmark.deleteMany({user:u._id});await u.deleteOne();res.json({ok:true});
+ await Task.deleteMany({user:u._id});await VaultItem.deleteMany({user:u._id});await Note.deleteMany({user:u._id});await Bookmark.deleteMany({user:u._id});await Share.deleteMany({$or:[{from:u._id},{to:u._id}]});await u.deleteOne();res.json({ok:true});
 });
 module.exports=r;

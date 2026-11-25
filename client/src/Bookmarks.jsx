@@ -15,7 +15,7 @@ function BookmarkModal({item,cats,onSave,onClose}){
   <div className="actions"><button type="button" className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={busy}>Save</button></div></form></Modal>;
 }
 
-export default function Bookmarks({say,ask}){
+export default function Bookmarks({say,ask,onShare}){
  const [list,setList]=useState([]),[loading,setLoading]=useState(true),[q,setQ]=useState(''),[cat,setCat]=useState('all'),[sort,setSort]=useState('fav'),[favOnly,setFavOnly]=useState(false),[modal,setModal]=useState(null);
  useEffect(()=>{api('/bookmarks').then(setList).finally(()=>setLoading(false));},[]);
  const cats=useMemo(()=>[...new Set(list.map(b=>b.category))].sort(),[list]);
@@ -45,6 +45,7 @@ export default function Bookmarks({say,ask}){
    {b.description&&<p className="vnotes">{b.description}</p>}
    <div className="vfoot"><span className="tag">{b.category}</span><small>{b.visits} visit{b.visits===1?'':'s'}</small><span className="grow"/>
     <button className="iconbtn dark" title="Open" onClick={()=>open(b)}><Icon n="link"/></button>
+    <button className="iconbtn dark" title="Share" onClick={()=>onShare(b)}><Icon n="share"/></button>
     <button className="iconbtn dark" title="Edit" onClick={()=>setModal(b)}><Icon n="edit"/></button>
     <button className="iconbtn dark" title="Delete" onClick={()=>del(b)}><Icon n="trash"/></button></div></div>)}</div>}
   {modal&&<BookmarkModal item={modal._id?modal:null} cats={cats} onSave={d=>save(d,modal)} onClose={()=>setModal(null)}/>}

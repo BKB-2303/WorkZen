@@ -28,6 +28,6 @@ r.post('/:id/visit',wrap(async(req,res)=>{
 }));
 r.delete('/:id',wrap(async(req,res)=>{
  const t=await Bookmark.findOneAndDelete({_id:req.params.id,user:req.user._id});
- if(!t)return res.status(404).json({message:'Not found'});res.json({ok:true});
+ if(!t)return res.status(404).json({message:'Not found'});await require('../models/Share').deleteMany({item:t._id});res.json({ok:true});
 }));
 module.exports=r;

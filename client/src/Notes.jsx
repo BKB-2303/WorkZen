@@ -18,7 +18,7 @@ function NoteModal({item,cats,onSave,onClose}){
  </form></Modal>;
 }
 
-export default function Notes({say,ask}){
+export default function Notes({say,ask,onShare}){
  const [list,setList]=useState([]),[loading,setLoading]=useState(true),[q,setQ]=useState(''),[cat,setCat]=useState('all'),[modal,setModal]=useState(null);
  useEffect(()=>{api('/notes').then(setList).catch(e=>say(e.message)).finally(()=>setLoading(false));},[]);
  const cats=useMemo(()=>[...new Set(list.map(n=>n.category))].sort(),[list]);
@@ -45,6 +45,7 @@ export default function Notes({say,ask}){
     <button className={'star'+(n.pinned?' on':'')} title={n.pinned?'Unpin':'Pin'} onClick={e=>{e.stopPropagation();pin(n);}}><Icon n="star" f={n.pinned}/></button></div>
    {n.content&&<p className="vnotes">{n.content.slice(0,240)}{n.content.length>240?'…':''}</p>}
    <div className="vfoot"><span className="tag">{n.category}</span><span className="grow"/>
+    <button className="iconbtn dark" title="Share" onClick={e=>{e.stopPropagation();onShare(n);}}><Icon n="share"/></button>
     <button className="iconbtn dark" title="Edit" onClick={e=>{e.stopPropagation();setModal(n);}}><Icon n="edit"/></button>
     <button className="iconbtn dark" title="Delete" onClick={e=>{e.stopPropagation();del(n);}}><Icon n="trash"/></button></div></div>)}</div>}
   {modal&&<NoteModal item={modal._id?modal:null} cats={cats} onSave={d=>save(d,modal)} onClose={()=>setModal(null)}/>}
