@@ -1,11 +1,11 @@
 import {useCallback,useEffect,useMemo,useRef,useState} from 'react';import {api} from './api.js';
 import Shell from './components/Shell.jsx';import Icon from './components/Icon.jsx';
 import TaskModal from './components/TaskModal.jsx';import PasswordModal from './components/PasswordModal.jsx';import Confirm from './components/Confirm.jsx';
-import Dashboard from './Dashboard.jsx';import Notes from './Notes.jsx';import Vault from './Vault.jsx';import useVault from './useVault.js';import Bookmarks from './Bookmarks.jsx';import Shared from './Shared.jsx';import Backup from './Backup.jsx';import Reports from './Reports.jsx';import Teams from './Teams.jsx';import Chat from './Chat.jsx';import Pagination,{usePaged} from './components/Pagination.jsx';import ShareModal from './components/ShareModal.jsx';
+import Dashboard from './Dashboard.jsx';import Notes from './Notes.jsx';import Vault from './Vault.jsx';import useVault from './useVault.js';import Bookmarks from './Bookmarks.jsx';import Shared from './Shared.jsx';import Backup from './Backup.jsx';import Reports from './Reports.jsx';import Teams from './Teams.jsx';import Chat from './Chat.jsx';import Notifications from './Notifications.jsx';import Pagination,{usePaged} from './components/Pagination.jsx';import ShareModal from './components/ShareModal.jsx';
 import {MONTHS,STATUS,fmtDate,fmtDateTime,isOverdue,dueLabel,stats,todayStr,addDays,sortTasks,SORTS,exportCSV} from './utils.js';
 
 const open=t=>t.status!=='done';
-const PERSONAL=['passwords','notes','bookmarks','shared','teams','chats','reports','backup'];
+const PERSONAL=['passwords','notes','bookmarks','shared','teams','chats','notifications','reports','backup'];
 const SMART={
  today:{title:'Today',sub:'Open tasks due today',icon:'cal',f:t=>open(t)&&t.dueDate===todayStr()},
  upcoming:{title:'Upcoming',sub:'Open tasks due in the next 7 days',icon:'clock',f:t=>open(t)&&t.dueDate>todayStr()&&t.dueDate<=addDays(7)},
@@ -71,14 +71,39 @@ export default function Workspace({user,onUserChange,onLogout,theme,onTheme}){
  const [q,setQ]=useState(''),[st,setSt]=useState('all'),[proj,setProj]=useState('all'),[pri,setPri]=useState('all'),[sort,setSort]=useState('due-desc');
  const [viewMode,setViewMode]=useState(()=>localStorage.getItem('workzen_task_view')||'list');
  const [modal,setModal]=useState(null),[pw,setPw]=useState(false),[ask,setAsk]=useState(null),[toast,setToast]=useState(''),[share,setShare]=useState(null),[sharedCount,setSharedCount]=useState(0),[teamCount,setTeamCount]=useState(0),[chatUnread,setChatUnread]=useState(0),[chatTo,setChatTo]=useState(null);
+ const [notifications,setNotifications]=useState([]),[notificationUnread,setNotificationUnread]=useState(0),[notificationLoading,setNotificationLoading]=useState(true),[notificationError,setNotificationError]=useState('');
  const searchRef=useRef(null);const navRef=useRef(nav);navRef.current=nav;const vault=useVault();
  useEffect(()=>{api('/tasks').then(setTasks).finally(()=>setLoading(false));api('/shares/received').then(l=>setSharedCount(l.length)).catch(()=>{});api('/teams').then(l=>setTeamCount(l.length)).catch(()=>{});},[]);
+ const refreshNotifications=useCallback(async()=>{
+  try{const d=await api('/notifications?today='+todayStr());setNotifications(d.items);setNotificationUnread(d.unread);setNotificationError('');}
+  catch(e){setNotificationError(e.message);}
+  finally{setNotificationLoading(false);}
+ },[]);
+ useEffect(()=>{const pull=()=>{if(document.visibilityState==='visible')refreshNotifications();};
+  refreshNotifications();const id=setInterval(pull,30000);document.addEventListener('visibilitychange',pull);
+  return()=>{clearInterval(id);document.removeEventListener('visibilitychange',pull);};
+ },[refreshNotifications]);
  useEffect(()=>{ // unread chat badge, refreshed every 30 s while the tab is visible
   const pull=()=>{if(document.visibilityState==='visible')api('/chat/unread').then(d=>setChatUnread(d.total)).catch(()=>{});};
   pull();const id=setInterval(pull,30000);document.addEventListener('visibilitychange',pull);return()=>{clearInterval(id);document.removeEventListener('visibilitychange',pull);};},[]);
  const say=m=>{setToast(m);setTimeout(()=>setToast(''),2200);};
  const go=useCallback((view,y=null,m=null)=>{setNav({view,y,m});setSort(view==='work'?'due-desc':'due-asc');},[]);
  const openChat=useCallback((ref,title)=>{setChatTo({ref,title,n:Date.now()});go('chats');},[go]);
+ const clearNotifications=async()=>{try{await api('/notifications/clear',{method:'POST'});setNotifications([]);setNotificationUnread(0);setNotificationError('');}
+  catch(e){setNotificationError(e.message);}};
+ const clearNotification=async n=>{try{await api('/notifications/'+n.id+'/clear',{method:'POST'});setNotifications(p=>p.filter(x=>x.id!==n.id));if(!n.readAt)setNotificationUnread(n=>Math.max(0,n-1));}
+  catch(e){setNotificationError(e.message);}};
+ const openNotification=async n=>{
+  if(!n.readAt){try{await api('/notifications/'+n.id+'/read',{method:'POST'});setNotifications(p=>p.map(x=>x.id===n.id?{...x,readAt:new Date().toISOString()}:x));setNotificationUnread(p=>Math.max(0,p-1));}
+   catch(e){setNotificationError(e.message);return;}}
+  const target=n.target;
+  if(target?.type==='chat'&&target.ref){setChatTo({ref:target.ref,title:target.title||'',n:Date.now()});go('chats');}
+  else if(target?.type==='task'){
+   const task=tasks.find(t=>t._id===target.taskId);
+   if(task){const date=task.startDate||task.dueDate;go('work',date.slice(0,4),Number(date.slice(5,7))-1);setModal(task);}
+   else go('shared');
+  }
+ };
  useEffect(()=>{const h=e=>{if(e.target.matches('input,textarea,select')||e.metaKey||e.ctrlKey||e.altKey)return;
   if(e.key==='n'&&!PERSONAL.includes(navRef.current.view)){e.preventDefault();setModal(m=>m||{});}if(e.key==='/'){e.preventDefault();searchRef.current?.focus();}};
   window.addEventListener('keydown',h);return()=>window.removeEventListener('keydown',h);},[]);
@@ -97,10 +122,10 @@ export default function Workspace({user,onUserChange,onLogout,theme,onTheme}){
  const safe=fn=>async(...a)=>{try{return await fn(...a);}catch(e){say(e.message);}};
  const replace=u=>setTasks(p=>p.map(x=>x._id===u._id?u:x));
  const save=async(data,ex)=>{if(ex?._id){replace(await api('/tasks/'+ex._id,{method:'PUT',body:data}));say('Task updated');}
-  else{const c=await api('/tasks',{method:'POST',body:data});setTasks(p=>[c,...p]);say('Task added');}};
- const patch=safe(async(t,body)=>replace(await api('/tasks/'+t._id,{method:'PUT',body})));
+  else{const c=await api('/tasks',{method:'POST',body:data});setTasks(p=>[c,...p]);say('Task added');}refreshNotifications();};
+ const patch=safe(async(t,body)=>{replace(await api('/tasks/'+t._id,{method:'PUT',body}));refreshNotifications();});
  const dup=safe(async t=>{const c=await api('/tasks',{method:'POST',body:{title:t.title+' (copy)',notes:t.notes,project:t.project,priority:t.priority,status:'todo',startDate:t.startDate||t.dueDate,dueDate:t.dueDate,checklist:(t.checklist||[]).map(c=>({text:c.text,done:false}))}});setTasks(p=>[c,...p]);say('Task duplicated');});
- const del=safe(async t=>{await api('/tasks/'+t._id,{method:'DELETE'});setTasks(p=>p.filter(x=>x._id!==t._id));say('Task deleted');});
+ const del=safe(async t=>{await api('/tasks/'+t._id,{method:'DELETE'});setTasks(p=>p.filter(x=>x._id!==t._id));refreshNotifications();say('Task deleted');});
 
  const cards=nav.y===null
   ?years.map(y=>{const n=Object.keys(tree[y]).length;return{key:y,label:y,sub:`${n} month folder${n>1?'s':''}`,list:Object.values(tree[y]).flat(),go:()=>go('work',y),share:{folder:{year:y,month:null,project:null},title:y}};})
@@ -112,7 +137,7 @@ export default function Workspace({user,onUserChange,onLogout,theme,onTheme}){
  const sidebar=<nav className="tree">
   <button className={'nitem'+(nav.view==='dashboard'?' on':'')} onClick={()=>go('dashboard')}><Icon n="chart"/><span>Dashboard</span></button>
   <div className="navlabel">PERSONAL</div>
-  {[['passwords','Saved passwords','lock'],['notes','Notes','note'],['bookmarks','Bookmarks','bookmark'],['shared','Shared','inbox'],['teams','Teams','users'],['chats','Chats','chat'],['reports','Reports','report'],['backup','Backup & restore','down']].map(([k,l,i])=><button key={k} className={'nitem'+(nav.view===k?' on':'')} onClick={()=>go(k)}><Icon n={k==='passwords'&&vault.unlocked?'unlock':i}/><span>{l}</span>{k==='shared'&&sharedCount>0&&<em>{sharedCount}</em>}{k==='teams'&&teamCount>0&&<em>{teamCount}</em>}{k==='chats'&&chatUnread>0&&<em className="warn">{chatUnread>99?'99+':chatUnread}</em>}</button>)}
+  {[['passwords','Saved passwords','lock'],['notes','Notes','note'],['bookmarks','Bookmarks','bookmark'],['shared','Shared','inbox'],['teams','Teams','users'],['chats','Chats','chat'],['notifications','Due date alerts','alert'],['reports','Reports','report'],['backup','Backup & restore','down']].map(([k,l,i])=><button key={k} className={'nitem'+(nav.view===k?' on':'')} onClick={()=>go(k)}><Icon n={k==='passwords'&&vault.unlocked?'unlock':i}/><span>{l}</span>{k==='shared'&&sharedCount>0&&<em>{sharedCount}</em>}{k==='teams'&&teamCount>0&&<em>{teamCount}</em>}{k==='chats'&&chatUnread>0&&<em className="warn">{chatUnread>99?'99+':chatUnread}</em>}{k==='notifications'&&notificationUnread>0&&<em className="warn">{notificationUnread>99?'99+':notificationUnread}</em>}</button>)}
   <div className="navlabel">SMART LISTS</div>
   {Object.entries(SMART).map(([k,v])=><button key={k} className={'nitem'+(nav.view===k?' on':'')} onClick={()=>go(k)}><Icon n={v.icon}/><span>{v.title}</span><em className={k==='overdue'&&tasks.some(isOverdue)?'warn':''}>{tasks.filter(v.f).length}</em></button>)}
   <div className="navlabel">WORK FOLDERS</div>
@@ -128,7 +153,7 @@ export default function Workspace({user,onUserChange,onLogout,theme,onTheme}){
  const bottom=<nav className="bottombar">{tab('dashboard','Home','home',()=>go('dashboard'))}{tab('work','Tasks','list',()=>go('work'))}
   <button className="btab fab" aria-label="Add task" onClick={()=>setModal({})}><Icon n="plus" s={24}/></button>{tab('notes','Notes','note',()=>go('notes'))}{tab('bookmarks','Links','bookmark',()=>go('bookmarks'))}</nav>;
  return <Shell user={user} nav={sidebar} bottom={bottom} navKey={nav.view+nav.y+nav.m} onLogout={onLogout} onPassword={()=>setPw(true)} onUserChange={onUserChange} theme={theme} onTheme={onTheme}>
-  {nav.view==='bookmarks'?<Bookmarks say={say} ask={setAsk} onShare={b=>setShare({kind:'bookmark',item:b,title:b.title})}/>:nav.view==='notes'?<Notes say={say} ask={setAsk} onShare={n=>setShare({kind:'note',item:n,title:n.title||'Untitled note'})}/>:nav.view==='shared'?<Shared user={user} say={say} ask={setAsk} onChat={openChat} onCount={setSharedCount} onTaskCopied={t=>setTasks(p=>[t,...p])}/>:nav.view==='teams'?<Teams user={user} say={say} ask={setAsk} onChat={openChat} onCount={setTeamCount} onTaskCopied={t=>setTasks(p=>[t,...p])}/>:nav.view==='chats'?<Chat say={say} ask={setAsk} initial={chatTo} onUnread={setChatUnread}/>:nav.view==='reports'?<Reports user={user} tasks={tasks} say={say}/>:nav.view==='backup'?<Backup user={user} say={say} onRestored={()=>api('/tasks').then(setTasks)}/>:nav.view==='passwords'?<Vault vault={vault} say={say} ask={setAsk}/>:nav.view==='dashboard'?(loading?<div className="empty">Loading…</div>:<Dashboard user={user} tasks={tasks} onGo={go} onAdd={()=>setModal({})}/>):<>
+  {nav.view==='bookmarks'?<Bookmarks say={say} ask={setAsk} onShare={b=>setShare({kind:'bookmark',item:b,title:b.title})}/>:nav.view==='notes'?<Notes say={say} ask={setAsk} onShare={n=>setShare({kind:'note',item:n,title:n.title||'Untitled note'})}/>:nav.view==='shared'?<Shared user={user} say={say} ask={setAsk} onChat={openChat} onCount={setSharedCount} onTaskCopied={t=>setTasks(p=>[t,...p])}/>:nav.view==='teams'?<Teams user={user} say={say} ask={setAsk} onChat={openChat} onCount={setTeamCount} onTaskCopied={t=>setTasks(p=>[t,...p])}/>:nav.view==='chats'?<Chat say={say} ask={setAsk} initial={chatTo} onUnread={setChatUnread}/>:nav.view==='notifications'?<Notifications items={notifications} unread={notificationUnread} loading={notificationLoading} error={notificationError} onRefresh={refreshNotifications} onClear={clearNotifications} onClearOne={clearNotification} onOpen={openNotification}/>:nav.view==='reports'?<Reports user={user} tasks={tasks} say={say}/>:nav.view==='backup'?<Backup user={user} say={say} onRestored={()=>api('/tasks').then(setTasks)}/>:nav.view==='passwords'?<Vault vault={vault} say={say} ask={setAsk}/>:nav.view==='dashboard'?(loading?<div className="empty">Loading…</div>:<Dashboard user={user} tasks={tasks} onGo={go} onAdd={()=>setModal({})}/>):<>
   <div className="crumbs"><a onClick={()=>go('dashboard')}>Dashboard</a> › {smart?smart.title:<><a onClick={()=>go('work')}>All work</a>{nav.y&&<> › <a onClick={()=>go('work',nav.y)}>{nav.y}</a></>}{nav.m!==null&&<> › {MONTHS[nav.m]}</>}</>}</div>
   <div className="phead"><div><h1>{title}</h1><p className="muted">{subtitle}</p></div><div className="phbtns">{nav.view==='work'&&!!tasks.length&&<button className="btn" title="Share everything in this folder" onClick={()=>setShare({kind:'folder',folder:{year:nav.y,month:nav.m,project:proj!=='all'?proj:null},title:title+(proj!=='all'?` · ${proj}`:'')})}><Icon n="share"/> Share folder</button>}<button className="btn primary" onClick={()=>setModal({})}><Icon n="plus"/> Add task</button></div></div>
   <Stats s={stats(scoped)}/>

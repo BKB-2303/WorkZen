@@ -1,5 +1,5 @@
 const r=require('express').Router();
-const Message=require('../models/Message'),ChatRead=require('../models/ChatRead'),Team=require('../models/Team'),User=require('../models/User'),Share=require('../models/Share'),Task=require('../models/Task');
+const Message=require('../models/Message'),ChatRead=require('../models/ChatRead'),ChatClear=require('../models/ChatClear'),Team=require('../models/Team'),User=require('../models/User'),Share=require('../models/Share'),Task=require('../models/Task');
 const {auth,userOnly}=require('../middleware/auth');
 const {incoming,normFolder,keys,resolveThread,isId}=require('../utils/access');
 const {M,folderLabel,folderQuery}=require('../utils/shareResolve');
@@ -7,7 +7,8 @@ r.use(auth,userOnly);
 const wrap=fn=>(req,res,next)=>fn(req,res,next).catch(e=>res.status(e.code>=400&&e.code<600?e.code:400).json({message:e.message||'Bad request'}));
 const bad=(m,code=400)=>Object.assign(new Error(m),{code});
 const ref=req=>({...(req.query||{}),...(req.body||{})});            // conversation reference sent by the client
-const out=(d,me)=>({id:d._id,text:d.deleted?'':d.text,deleted:!!d.deleted,at:d.createdAt,editedAt:d.editedAt||null,
+const STICKERS=['😀','😂','😍','🥳','👍','❤️','🎉','🙏','👋','🔥','🤔','😢','💯','✨','🚀','🥰'];
+const out=(d,me)=>({id:d._id,kind:d.kind||'text',sticker:d.kind==='sticker'?d.sticker:'',text:d.deleted?'':d.text,deleted:!!d.deleted,at:d.createdAt,editedAt:d.editedAt||null,
  sender:d.sender&&d.sender._id?{id:d.sender._id,name:d.sender.name||d.sender.username,username:d.sender.username,online:!!d.sender.lastSeen&&Date.now()-new Date(d.sender.lastSeen).getTime()<90000}:{id:null,name:'Deleted user',username:'',online:false},
  you:!!d.sender&&String(d.sender._id||d.sender)===String(me),replyTo:d.replyTo&&d.replyTo.id?{id:d.replyTo.id,name:d.replyTo.name,text:d.replyTo.text}:null});
 const info=t=>({key:t.key,type:t.scope,title:t.title,sub:t.sub,canModerate:t.canModerate,other:t.other||null});
@@ -43,7 +44,7 @@ async function allEntries(me,want={teams:true,direct:true,items:true}){
   const us=others.length?await User.find({_id:{$in:others},active:{$ne:false}}).select('name username avatar lastSeen').lean():[];
   const um=new Map(us.map(u=>[String(u._id),u]));
   for(const d of dms){const o=d.pair.find(p=>String(p)!==String(me)),u=o&&um.get(String(o));
-   if(u)ent.set(d._id,{key:d._id,type:'direct',title:u.name||u.username,sub:'@'+u.username,other:String(u._id),ref:{type:'direct',user:String(u._id)}});}
+   if(u)ent.set(d._id,{key:d._id,type:'direct',title:u.name||u.username,sub:'@'+u.username,other:String(u._id),ref:{type:'direct',user:String(u._id)},always:true});}
  }
  if(want.items)for(const [k,v] of await itemEntries(me))ent.set(k,v);
  return ent;
@@ -51,11 +52,19 @@ async function allEntries(me,want={teams:true,direct:true,items:true}){
 // last message + unread count per conversation
 async function stats(me,list){
  if(!list.length)return {last:new Map(),unread:new Map()};
+ const [clears,reads]=await Promise.all([
+  ChatClear.find({user:me,thread:{$in:list}}).select('thread clearedAt').lean(),
+  ChatRead.find({user:me,thread:{$in:list}}).select('thread at').lean()
+ ]);
+ const clearAt=new Map(clears.map(x=>[x.thread,x.clearedAt])),readAt=new Map(reads.map(x=>[x.thread,x.at]));
+ const ranges=list.map(thread=>({thread,...(clearAt.has(thread)?{createdAt:{$gt:clearAt.get(thread)}}:{})}));
+ const unreadRanges=list.map(thread=>{
+  const c=clearAt.get(thread),r=readAt.get(thread),cutoff=c&&r?(c>r?c:r):c||r;
+  return{thread,...(cutoff?{createdAt:{$gt:cutoff}}:{})};
+ });
  const [last,unread]=await Promise.all([
-  Message.aggregate([{$match:{thread:{$in:list},deleted:false}},{$sort:{createdAt:-1}},{$group:{_id:'$thread',m:{$first:'$$ROOT'}}}]),
-  Message.aggregate([{$match:{thread:{$in:list},sender:{$ne:me},deleted:false}},
-   {$lookup:{from:'chatreads',let:{t:'$thread'},pipeline:[{$match:{$expr:{$and:[{$eq:['$thread','$$t']},{$eq:['$user',me]}]}}}],as:'r'}},
-   {$match:{$expr:{$gt:['$createdAt',{$ifNull:[{$arrayElemAt:['$r.at',0]},new Date(0)]}]}}},
+  Message.aggregate([{$match:{deleted:false,$or:ranges}},{$sort:{createdAt:-1}},{$group:{_id:'$thread',m:{$first:'$$ROOT'}}}]),
+  Message.aggregate([{$match:{sender:{$ne:me},deleted:false,$or:unreadRanges}},
    {$group:{_id:'$thread',n:{$sum:1}}}])]);
  return {last:new Map(last.map(x=>[x._id,x.m])),unread:new Map(unread.map(x=>[x._id,x.n]))};
 }
@@ -79,7 +88,7 @@ r.get('/threads',wrap(async(req,res)=>{
  res.json({threads:list.map(e=>({key:e.key,type:e.type,kind:e.kind||null,title:e.title,
   sub:e.type==='item'||e.type==='folder'?`${e.type==='folder'?'Folder':e.kind[0].toUpperCase()+e.kind.slice(1)}${String(e.owner)===String(me)?' · yours':' · shared by '+(um.get(e.owner)||'?')}`:e.sub,
   ref:e.ref,unread:e.unread,other:e.other?{avatar:users.get(e.other)?.avatar||'',online:!!users.get(e.other)?.lastSeen&&Date.now()-new Date(users.get(e.other).lastSeen).getTime()<90000}:null,
-  last:e.last?{text:e.last.text.slice(0,120),at:e.last.createdAt,by:String(e.last.sender)===String(me)?'You':um.get(String(e.last.sender))||'Someone'}:null})),
+  last:e.last?{id:String(e.last._id),text:e.last.kind==='sticker'?'Sent a sticker':e.last.text.slice(0,120),at:e.last.createdAt,by:String(e.last.sender)===String(me)?'You':um.get(String(e.last.sender))||'Someone'}:null})),
   total,page,pages,limit,unread:totalUnread});
 }));
 
@@ -94,10 +103,12 @@ r.get('/messages',wrap(async(req,res)=>{
  const me=req.user._id,t=await resolveThread(me,ref(req)),q=req.query;
  const limit=Math.min(Math.max(parseInt(q.limit,10)||30,5),100),now=new Date();
  const cond={thread:t.key};
+ const clear=await ChatClear.findOne({user:me,thread:t.key}).select('clearedAt').lean();
+ if(clear)cond.createdAt={$gt:clear.clearedAt};
  let rows,hasMore=false;
  if(q.since){
   const d=new Date(q.since);if(isNaN(d))throw bad('Bad time');
-  rows=await Message.find({...cond,updatedAt:{$gt:d}}).sort({createdAt:1}).limit(200).populate('sender','name username lastSeen').lean();
+  rows=await Message.find({$and:[cond,{updatedAt:{$gt:d}}]}).sort({createdAt:1}).limit(200).populate('sender','name username lastSeen').lean();
  }else{
   const text=String(q.q||'').trim().slice(0,80);
   if(text)cond.text=new RegExp(text.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'i'),cond.deleted=false;
@@ -111,13 +122,15 @@ r.get('/messages',wrap(async(req,res)=>{
 
 r.post('/messages',wrap(async(req,res)=>{
  const me=req.user._id,t=await resolveThread(me,ref(req));
- const text=String(req.body?.text||'').trim().slice(0,2000);
- if(!text)throw bad('Write a message first');
- const doc={thread:t.key,scope:t.scope,sender:me,text};
+ const kind=req.body?.kind==='sticker'?'sticker':'text',sticker=String(req.body?.sticker||'');
+ const text=kind==='sticker'?'':String(req.body?.text||'').trim().slice(0,2000);
+ if(kind==='sticker'&&!STICKERS.includes(sticker))throw bad('Choose a sticker');
+ if(kind==='text'&&!text)throw bad('Write a message first');
+ const doc={thread:t.key,scope:t.scope,sender:me,kind,sticker:kind==='sticker'?sticker:'',text};
  if(t.team)doc.team=t.team;if(t.owner)doc.owner=t.owner;if(t.pair)doc.pair=t.pair;
  if(isId(req.body?.replyTo)){
   const p=await Message.findOne({_id:req.body.replyTo,thread:t.key}).populate('sender','name username lastSeen').lean();
-  if(p)doc.replyTo={id:p._id,name:p.sender?(p.sender.name||p.sender.username):'Deleted user',text:p.deleted?'Message deleted':p.text.slice(0,140)};
+  if(p)doc.replyTo={id:p._id,name:p.sender?(p.sender.name||p.sender.username):'Deleted user',text:p.deleted?'Message deleted':p.kind==='sticker'?`Sticker ${p.sticker}`:p.text.slice(0,140)};
  }
  const m=await Message.create(doc);
  await touch(me,t.key,new Date(Date.now()+1));
@@ -127,9 +140,18 @@ r.post('/messages',wrap(async(req,res)=>{
 r.put('/messages/:id',wrap(async(req,res)=>{
  const me=req.user._id,text=String(req.body?.text||'').trim().slice(0,2000);
  if(!text)throw bad('Message cannot be empty');
- const m=await Message.findOneAndUpdate({_id:req.params.id,sender:me,deleted:false},{$set:{text,editedAt:new Date()}},{new:true}).populate('sender','name username lastSeen').lean();
+ const m=await Message.findOneAndUpdate({_id:req.params.id,sender:me,deleted:false,kind:{$ne:'sticker'}},{$set:{text,editedAt:new Date()}},{new:true}).populate('sender','name username lastSeen').lean();
  if(!m)throw bad('You can only edit your own messages',404);
  res.json(out(m,me));
+}));
+
+r.post('/clear',wrap(async(req,res)=>{
+ const me=req.user._id,t=await resolveThread(me,ref(req));
+ if(t.scope!=='direct')throw bad('Only private chat history can be cleared here');
+ const clearedAt=new Date();
+ await ChatClear.findOneAndUpdate({user:me,thread:t.key},{$set:{clearedAt}},{upsert:true,new:true,setDefaultsOnInsert:true});
+ await touch(me,t.key,clearedAt);
+ res.json({ok:true,clearedAt});
 }));
 
 r.delete('/messages/:id',wrap(async(req,res)=>{

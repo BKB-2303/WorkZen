@@ -8,6 +8,8 @@ const s=new m.Schema({
  team:{type:m.Schema.Types.ObjectId,ref:'Team',index:true},
  owner:{type:m.Schema.Types.ObjectId,ref:'User'},          // owner of the shared item/folder (can moderate)
  pair:{type:[m.Schema.Types.ObjectId],default:undefined,index:true}, // the two people of a direct chat
+ kind:{type:String,enum:['text','sticker'],default:'text'},
+ sticker:{type:String,default:'',maxlength:16},
  text:{type:String,default:'',maxlength:2000},
  replyTo:{type:new m.Schema({id:m.Schema.Types.ObjectId,name:String,text:String},{_id:false}),default:undefined},
  editedAt:{type:Date,default:null},

@@ -22,11 +22,25 @@ function NewChat({onPick,onClose}){
 // All conversations: teams, people, shared items and folders
 export default function Chat({say,ask,initial,onUnread}){
  const [tab,setTab]=useState('all'),[q,setQ]=useState(''),[qd,setQd]=useState(''),[page,setPage]=useState(1),[data,setData]=useState(null),[sel,setSel]=useState(null),[picker,setPicker]=useState(false);
+ const seenLast=useRef(null),joinedAt=useRef(Date.now()),sayRef=useRef(say);sayRef.current=say;
  useEffect(()=>{if(initial?.ref)setSel({ref:initial.ref,title:initial.title||''});},[initial?.n]);
  useEffect(()=>{const t=setTimeout(()=>setQd(q.trim()),300);return()=>clearTimeout(t);},[q]);
  useEffect(()=>{setPage(1);},[tab,qd]);
  const fetchThreads=useCallback(()=>api(`/chat/threads?type=${tab}&page=${page}&limit=12&q=${encodeURIComponent(qd)}`)
-  .then(d=>{setData(d);onUnread?.(d.unread);if(d.page!==page)setPage(d.page);}).catch(e=>say(e.message)),[tab,page,qd]);
+  .then(d=>{
+   const previous=seenLast.current;
+   if(previous){
+    const incoming=d.threads.filter(t=>t.last?.id&&t.last.by!=='You'&&
+     (previous.has(t.key)?previous.get(t.key)!==t.last.id:new Date(t.last.at).getTime()>joinedAt.current));
+    if(incoming.length){
+     incoming.sort((a,b)=>new Date(b.last.at)-new Date(a.last.at));
+     const t=incoming[0];sayRef.current(`${t.last.by} sent a message${t.type==='team'?` in ${t.title}`:''}: ${t.last.text}`);
+    }
+   }
+   const next=new Map(previous||[]);
+   for(const t of d.threads)if(t.last?.id)next.set(t.key,t.last.id);
+   seenLast.current=next;setData(d);onUnread?.(d.unread);if(d.page!==page)setPage(d.page);
+  }).catch(e=>sayRef.current(e.message)),[tab,page,qd,onUnread]);
  const fetchRef=useRef(fetchThreads);fetchRef.current=fetchThreads;
  useEffect(()=>{fetchThreads();const id=setInterval(()=>document.visibilityState==='visible'&&fetchRef.current(),15000);return()=>clearInterval(id);},[fetchThreads]);
  const cur=sel&&chatKey(sel.ref);
@@ -45,7 +59,7 @@ export default function Chat({say,ask,initial,onUnread}){
     {data&&<Pagination page={data.page} pages={data.pages} total={data.total} size={data.limit} onPage={setPage} compact/>}
    </div>
    <div className="chatmain">{sel?<><button className="btn small sback cback" onClick={()=>{setSel(null);fetchThreads();}}>← All chats</button>
-     <ChatPanel key={chatKey(sel.ref)} chatRef={sel.ref} say={say} ask={ask} onRead={()=>fetchRef.current()}/></>
+     <ChatPanel key={chatKey(sel.ref)} chatRef={sel.ref} say={say} ask={ask} onRead={()=>fetchRef.current()} onClear={()=>fetchRef.current()}/></>
     :<div className="empty cpick"><Icon n="chat" s={34}/><b>Pick a conversation</b><p>Choose one on the left, or start a new private message.</p><button className="btn primary" onClick={()=>setPicker(true)}><Icon n="plus"/> New message</button></div>}</div>
   </div>
   {picker&&<NewChat onPick={u=>{setSel({ref:{type:'direct',user:u.id},title:u.name});setPicker(false);}} onClose={()=>setPicker(false)}/>}

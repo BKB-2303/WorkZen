@@ -11,6 +11,7 @@ app.use('/api/bookmarks',require('./routes/bookmarks'));
 app.use('/api/shares',require('./routes/shares'));
 app.use('/api/teams',require('./routes/teams'));
 app.use('/api/chat',require('./routes/chat'));
+app.use('/api/notifications',require('./routes/notifications'));
 app.use('/api/backup',require('./routes/backup'));
 app.use('/api',(req,res)=>res.status(404).json({message:'Not found'}));
 const dist=path.join(__dirname,'../client/dist');

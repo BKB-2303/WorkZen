@@ -38,6 +38,7 @@ const P={
  inbox:<path d="M22 12h-6l-2 3h-4l-2-3H2M5.5 5.1 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.5-6.9A2 2 0 0 0 16.8 4H7.2a2 2 0 0 0-1.7 1.1z"/>,
  chat:<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>,
  send:<path d="m22 2-7 20-4-9-9-4zM22 2 11 13"/>,
+ sticker:<><path d="M12 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h7"/><path d="M21 12V5a2 2 0 0 0-2-2h-4"/><path d="M21 15v6h-6"/><path d="m21 15-6 6"/></>,
  reply:<path d="M9 14 4 9l5-5M4 9h10a6 6 0 0 1 6 6v3"/>,
  left:<path d="m15 18-6-6 6-6"/>,
  right:<path d="m9 18 6-6-6-6"/>,

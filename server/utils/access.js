@@ -56,7 +56,7 @@ async function resolveThread(me,q={}){
    if(!ok)throw err('You do not have access to this',403);
   }
   const ow=await User.findById(owner).select('name username').lean();
-  return {key:keys.item(d._id),scope:'item',owner,title:d.title||'Untitled note',sub:`${q.kind[0].toUpperCase()+q.kind.slice(1)} chat${ow&&String(owner)!==String(me)?' · shared by '+(ow.name||ow.username):''}`,canModerate:String(owner)===String(me)};
+  return {key:keys.item(d._id),scope:'item',kind:q.kind,item:d._id,owner,title:d.title||'Untitled note',sub:`${q.kind[0].toUpperCase()+q.kind.slice(1)} chat${ow&&String(owner)!==String(me)?' · shared by '+(ow.name||ow.username):''}`,canModerate:String(owner)===String(me)};
  }
  if(type==='folder'){
   if(!isId(q.owner)&&q.owner!=='me')throw err('Folder not found',404);
@@ -68,7 +68,7 @@ async function resolveThread(me,q={}){
    if(!s)throw err('You do not have access to this',403);
   }
   const ow=await User.findById(owner).select('name username').lean();
-  return {key:keys.folder(owner,f),scope:'folder',owner,title:folderLabel(f),sub:`Folder chat${ow&&String(owner)!==String(me)?' · shared by '+(ow.name||ow.username):''}`,canModerate:String(owner)===String(me)};
+  return {key:keys.folder(owner,f),scope:'folder',owner,folder:f,title:folderLabel(f),sub:`Folder chat${ow&&String(owner)!==String(me)?' · shared by '+(ow.name||ow.username):''}`,canModerate:String(owner)===String(me)};
  }
  throw err('Unknown conversation');
 }
