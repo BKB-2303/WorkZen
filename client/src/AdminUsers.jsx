@@ -2,7 +2,7 @@ import {useEffect,useState} from 'react';import {api} from './api.js';
 import Shell from './components/Shell.jsx';import Icon from './components/Icon.jsx';import Modal from './components/Modal.jsx';
 import Pagination,{usePaged} from './components/Pagination.jsx';import PasswordModal from './components/PasswordModal.jsx';import Confirm from './components/Confirm.jsx';import {genPassword,fmtDateTime} from './utils.js';
 const blank=()=>({name:'',username:'',password:genPassword(),role:'user'});
-export default function AdminUsers({user,onLogout,theme,onTheme}){
+export default function AdminUsers({user,onUserChange,onLogout,theme,onTheme}){
  const [users,setUsers]=useState([]),[loading,setLoading]=useState(true),[q,setQ]=useState(''),[role,setRole]=useState('all');
  const [add,setAdd]=useState(null),[reset,setReset]=useState(null),[self,setSelf]=useState(false),[ask,setAsk]=useState(null),[toast,setToast]=useState(''),[err,setErr]=useState('');
  const say=m=>{setToast(m);setTimeout(()=>setToast(''),2500);};
@@ -17,7 +17,7 @@ export default function AdminUsers({user,onLogout,theme,onTheme}){
  const list=users.filter(u=>(role==='all'||u.role===role)&&(u.name+u.username).toLowerCase().includes(q.toLowerCase()));
  const pg=usePaged(list,{size:10,key:q+'|'+role,store:'users'});
  const sideNav=<nav className="tree"><div className="navlabel">ADMIN</div><button className="nitem on"><Icon n="users"/><span>User management</span><em>{users.length}</em></button></nav>;
- return <Shell user={user} nav={sideNav} navKey="admin" onLogout={onLogout} onPassword={()=>setSelf(true)} theme={theme} onTheme={onTheme}>
+ return <Shell user={user} nav={sideNav} navKey="admin" onLogout={onLogout} onPassword={()=>setSelf(true)} onUserChange={onUserChange} theme={theme} onTheme={onTheme}>
   <div className="phead"><div><h1>User management</h1><p className="muted">Create accounts, reset passwords and control access.</p></div>
    <button className="btn primary" onClick={()=>{setErr('');setAdd(blank());}}><Icon n="plus"/> Add user</button></div>
   <div className="stats s4">{[['Total users',users.length,'c-dark'],['Active',users.filter(u=>u.active).length,'c-green'],['Disabled',users.filter(u=>!u.active).length,'c-red'],['Admins',users.filter(u=>u.role==='admin').length,'c-blue']]

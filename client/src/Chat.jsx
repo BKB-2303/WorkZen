@@ -1,6 +1,6 @@
 import {useCallback,useEffect,useRef,useState} from 'react';import {api} from './api.js';
 import Icon from './components/Icon.jsx';import Modal from './components/Modal.jsx';import ChatPanel from './components/ChatPanel.jsx';import Pagination,{usePaged} from './components/Pagination.jsx';
-import {hue,ago,chatKey} from './utils.js';
+import UserAvatar from './components/UserAvatar.jsx';import {hue,ago,chatKey} from './utils.js';
 const TABS=[['all','All'],['team','Teams'],['direct','People'],['item','Shared items']];
 const KI={team:'users',item:'list',folder:'folder'};
 const itemIcon=t=>t.type==='folder'?'folder':({task:'list',note:'note',bookmark:'bookmark'}[t.kind]||'list');
@@ -14,7 +14,7 @@ function NewChat({onPick,onClose}){
   <div className="search" style={{marginBottom:8}}><Icon n="search"/><input autoFocus placeholder="Search people" value={q} onChange={e=>setQ(e.target.value)}/></div>
   {err&&<div className="err">{err}</div>}
   <div className="plist" style={{maxHeight:'none'}}>{users===null?<div className="muted pad">Loading…</div>:!pg.rows.length?<div className="muted pad">{users.length?'No one matches.':'No other users yet. Ask the admin to create accounts.'}</div>
-   :pg.rows.map(u=><button className="prow pick pbtnrow" key={u.id} onClick={()=>onPick(u)}><div className="avatar sm" style={{background:`hsl(${hue(u.username)} 55% 45%)`}}>{(u.name||'?')[0].toUpperCase()}</div><div className="grow"><b>{u.name}</b><small>@{u.username}</small></div><Icon n="chat" s={16}/></button>)}</div>
+   :pg.rows.map(u=><button className="prow pick pbtnrow" key={u.id} onClick={()=>onPick(u)}><UserAvatar user={u} className="sm" online={u.online}/><div className="grow"><b>{u.name}</b><small>@{u.username} · {u.online?'Online':'Offline'}</small></div><Icon n="chat" s={16}/></button>)}</div>
   <Pagination {...pg} compact/>
  </Modal>;
 }
@@ -39,7 +39,7 @@ export default function Chat({say,ask,initial,onUnread}){
     <div className="chips">{TABS.map(([k,l])=><button key={k} className={'chip'+(tab===k?' on':'')} onClick={()=>setTab(k)}>{l}</button>)}</div>
     <div className="srows">{data===null?<div className="muted pad">Loading…</div>:!data.threads.length?<div className="muted pad">{qd?'No chats match.':tab==='direct'?'No private chats yet. Press “New message”.':tab==='item'?'Open a shared item and use its Chat tab to start one.':'Nothing here yet.'}</div>
      :data.threads.map(t=><button key={t.key} className={'srow'+(cur===chatKey(t.ref)?' on':'')} onClick={()=>setSel({ref:t.ref,title:t.title})}>
-      <div className="sico" style={{background:`hsl(${hue(t.title)} 55% 45%)`}}>{t.type==='direct'?t.title[0].toUpperCase():<Icon n={t.type==='team'?'users':itemIcon(t)} s={16}/>}</div>
+      {t.type==='direct'?<UserAvatar user={{name:t.title,...t.other}} className="sm" online={t.other?.online}/>:<div className="sico" style={{background:`hsl(${hue(t.title)} 55% 45%)`}}><Icon n={t.type==='team'?'users':itemIcon(t)} s={16}/></div>}
       <div className="smeta"><b>{t.title}</b><small>{t.last?`${t.last.by}: ${t.last.text}`:t.sub}</small>{t.last&&<small className="csub">{t.sub}</small>}</div>
       <div className="cside">{t.last&&<small>{ago(t.last.at)}</small>}{t.unread>0&&<span className="ubadge">{t.unread>99?'99+':t.unread}</span>}</div></button>)}</div>
     {data&&<Pagination page={data.page} pages={data.pages} total={data.total} size={data.limit} onPage={setPage} compact/>}

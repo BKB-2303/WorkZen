@@ -13,7 +13,7 @@ const SMART={
  high:{title:'High priority',sub:'Open tasks marked high priority',icon:'flag',f:t=>open(t)&&t.priority==='High'}
 };
 
-function Stats({s}){return <div className="stats">{[['Total',s.total,'c-dark'],['To do',s.todo,'c-amber'],['In progress',s.inprogress,'c-blue'],['Done',s.done,'c-green'],['Overdue',s.overdue,'c-red']]
+function Stats({s}){return <div className="stats">{[['Total',s.total,'c-dark'],['Pending',s.todo,'c-amber'],['In progress',s.inprogress,'c-blue'],['Done',s.done,'c-green'],['Overdue',s.overdue,'c-red']]
  .map(([l,v,c])=><div className="stat" key={l}><small>{l.toUpperCase()}</small><b className={c}>{v}</b></div>)}</div>;}
 
 function FolderCard({label,sub,list,onClick,onShare}){
@@ -26,18 +26,19 @@ function FolderCard({label,sub,list,onClick,onShare}){
 
 function TaskRow({t,onStatus,onSave,onEdit,onDup,onShare,onDelete}){
  const [isOpen,setOpen]=useState(false);const [dr,setDr]=useState({status:t.status,checklist:t.checklist||[]}),[busy,setBusy]=useState(false);
- useEffect(()=>{setDr({status:t.status,checklist:t.checklist||[]});},[t._id,t.status,t.updatedAt]);
+ const storedChecklist=JSON.stringify(t.checklist||[]);
+ useEffect(()=>{setDr({status:t.status,checklist:t.checklist||[]});},[t._id,storedChecklist]);
  const dirty=dr.status!==t.status||JSON.stringify(dr.checklist)!==JSON.stringify(t.checklist||[]);
  const doSave=async()=>{setBusy(true);await onSave({status:dr.status,checklist:dr.checklist});setBusy(false);};const od=isOverdue(t),done=t.status==='done';
  const cl=dr.checklist,cdone=cl.filter(c=>c.done).length;
  return <div className={'trow s-'+(od?'overdue':t.status)+(isOpen?' open':'')}>
   <div className="thead" onClick={()=>setOpen(!isOpen)}>
-   <button className={'check'+(done?' on':'')} title={done?'Reopen':'Mark done'} onClick={e=>{e.stopPropagation();onStatus(done?'todo':'done');}}>{done&&<Icon n="check" s={13}/>}</button>
-   <b className={done?'strike':''}>{t.title}</b><span className="chev"><Icon n="chev"/></span></div>
+   <button className={'check'+(done?' on':'')} title={done?'Reopen':'Mark done'} onClick={e=>{e.stopPropagation();const next=done?'todo':'done';setDr(p=>({...p,status:next}));onStatus(next);}}>{done&&<Icon n="check" s={13}/>}</button>
+   <b className={done?'strike':''}>{t.title}</b>{cl.length>0&&<small className="clsummary">{cdone}/{cl.length} steps</small>}<span className="chev"><Icon n="chev"/></span></div>
   {isOpen&&<div className="tbody">
    <p className={'tnotes'+(t.notes?'':' muted')}>{t.notes||'No notes added.'}</p>
    <div className="tags"><span className={'tag st-'+t.status}>{STATUS[t.status]}</span><span className={'tag pr-'+t.priority}>{t.priority}</span><span className="tag">{t.project}</span>{od&&<span className="tag st-overdue">Overdue</span>}</div>
-   <div className="meta"><div><small>DUE</small><span className={od?'c-red':''}>{fmtDate(t.dueDate)} · {dueLabel(t)}</span></div><div><small>CREATED</small><span>{fmtDateTime(t.createdAt)}</span></div>{done&&<div><small>COMPLETED</small><span>{fmtDateTime(t.completedAt)}</span></div>}</div>
+   <div className="meta"><div><small>START</small><span>{fmtDate(t.startDate||t.dueDate)}</span></div><div><small>DUE</small><span className={od?'c-red':''}>{fmtDate(t.dueDate)} · {dueLabel(t)}</span></div><div><small>CREATED</small><span>{fmtDateTime(t.createdAt)}</span></div>{done&&<div><small>COMPLETED</small><span>{fmtDateTime(t.completedAt)}</span></div>}</div>
    {cl.length>0&&<div className="cl"><div className="clhead"><small>CHECKLIST · {cdone}/{cl.length}</small><div className="bar slim"><i style={{width:cdone/cl.length*100+'%'}}/></div></div>
     {cl.map((c,i)=><label className="citem" key={i}><input type="checkbox" checked={c.done} onChange={()=>setDr({...dr,checklist:cl.map((x,j)=>j===i?{...x,done:!x.done}:x)})}/><span className={c.done?'strike':''}>{c.text}</span></label>)}</div>}
    <div className="trow-actions"><div className="seg">{Object.entries(STATUS).map(([k,v])=><button key={k} className={dr.status===k?'on':''} onClick={()=>setDr({...dr,status:k})}>{v}</button>)}</div>
@@ -46,10 +47,29 @@ function TaskRow({t,onStatus,onSave,onEdit,onDup,onShare,onDelete}){
   </div>}</div>;
 }
 
-export default function Workspace({user,onLogout,theme,onTheme}){
+function TaskCard({t,onStatus,onSave,onEdit,onDup,onShare,onDelete}){
+  const [list,setList]=useState(t.checklist||[]),[busy,setBusy]=useState(false);
+  const storedChecklist=JSON.stringify(t.checklist||[]);
+  useEffect(()=>setList(t.checklist||[]),[t._id,storedChecklist]);
+  const checked=list.filter(c=>c.done).length,dirty=JSON.stringify(list)!==JSON.stringify(t.checklist||[]);
+  const save=async()=>{setBusy(true);await onSave({checklist:list});setBusy(false);};
+  return <article className="taskcard">
+   <div className="taskcard-head"><button className={'check'+(t.status==='done'?' on':'')} title={t.status==='done'?'Reopen':'Mark done'} onClick={()=>onStatus(t.status==='done'?'todo':'done')}>{t.status==='done'&&<Icon n="check" s={13}/>}</button>
+    <b className={t.status==='done'?'strike':''}>{t.title}</b></div>
+   <div className="tags"><span className={'tag st-'+t.status}>{STATUS[t.status]}</span><span className={'tag pr-'+t.priority}>{t.priority}</span><span className="tag">{t.project}</span></div>
+   <div className="taskcard-dates"><span><small>START</small>{fmtDate(t.startDate||t.dueDate)}</span><span><small>DUE</small><b className={isOverdue(t)?'c-red':''}>{fmtDate(t.dueDate)}</b></span></div>
+   {list.length>0&&<div className="taskcard-checklist"><div className="clhead"><small>CHECKLIST · {checked}/{list.length}</small><div className="bar slim"><i style={{width:checked/list.length*100+'%'}}/></div></div>
+    {list.map((c,i)=><label className="citem" key={i}><input type="checkbox" checked={c.done} onChange={()=>setList(list.map((x,j)=>j===i?{...x,done:!x.done}:x))}/><span className={c.done?'strike':''}>{c.text}</span></label>)}</div>}
+   <div className="taskcard-actions"><button className="btn small" onClick={onShare}><Icon n="share" s={14}/> Share</button><button className="btn small" onClick={onEdit}>Edit</button><button className="btn small" onClick={onDup}><Icon n="copy" s={14}/> Duplicate</button><button className="btn small danger" onClick={onDelete}>Delete</button></div>
+   {dirty&&<div className="savebar"><span>Checklist changes are unsaved</span><span className="grow"/><button className="btn small" disabled={busy} onClick={()=>setList(t.checklist||[])}>Discard</button><button className="btn small primary" disabled={busy} onClick={save}>{busy?'Saving…':'Save'}</button></div>}
+  </article>;
+}
+
+export default function Workspace({user,onUserChange,onLogout,theme,onTheme}){
  const [tasks,setTasks]=useState([]);const [loading,setLoading]=useState(true);
  const [nav,setNav]=useState({view:'dashboard',y:null,m:null});
  const [q,setQ]=useState(''),[st,setSt]=useState('all'),[proj,setProj]=useState('all'),[pri,setPri]=useState('all'),[sort,setSort]=useState('due-desc');
+ const [viewMode,setViewMode]=useState(()=>localStorage.getItem('workzen_task_view')||'list');
  const [modal,setModal]=useState(null),[pw,setPw]=useState(false),[ask,setAsk]=useState(null),[toast,setToast]=useState(''),[share,setShare]=useState(null),[sharedCount,setSharedCount]=useState(0),[teamCount,setTeamCount]=useState(0),[chatUnread,setChatUnread]=useState(0),[chatTo,setChatTo]=useState(null);
  const searchRef=useRef(null);const navRef=useRef(nav);navRef.current=nav;const vault=useVault();
  useEffect(()=>{api('/tasks').then(setTasks).finally(()=>setLoading(false));api('/shares/received').then(l=>setSharedCount(l.length)).catch(()=>{});api('/teams').then(l=>setTeamCount(l.length)).catch(()=>{});},[]);
@@ -63,15 +83,15 @@ export default function Workspace({user,onLogout,theme,onTheme}){
   if(e.key==='n'&&!PERSONAL.includes(navRef.current.view)){e.preventDefault();setModal(m=>m||{});}if(e.key==='/'){e.preventDefault();searchRef.current?.focus();}};
   window.addEventListener('keydown',h);return()=>window.removeEventListener('keydown',h);},[]);
 
- const tree=useMemo(()=>{const t={};for(const k of tasks){const y=k.dueDate.slice(0,4),m=+k.dueDate.slice(5,7)-1;((t[y]??={})[m]??=[]).push(k);}return t;},[tasks]);
+ const tree=useMemo(()=>{const t={};for(const k of tasks){const date=k.startDate||k.dueDate,y=date.slice(0,4),m=+date.slice(5,7)-1;((t[y]??={})[m]??=[]).push(k);}return t;},[tasks]);
  const years=Object.keys(tree).sort().reverse();
  const projects=useMemo(()=>[...new Set(tasks.map(t=>t.project))].sort(),[tasks]);
  const smart=SMART[nav.view];
- const scoped=smart?tasks.filter(smart.f):tasks.filter(t=>(nav.y===null||t.dueDate.startsWith(nav.y))&&(nav.m===null||+t.dueDate.slice(5,7)-1===nav.m));
+ const scoped=smart?tasks.filter(smart.f):tasks.filter(t=>{const d=t.startDate||t.dueDate;return(nav.y===null||d.startsWith(nav.y))&&(nav.m===null||+d.slice(5,7)-1===nav.m);});
  const filterOn=q||st!=='all'||proj!=='all'||pri!=='all';
  const needle=q.toLowerCase();
  const shown=sortTasks(scoped.filter(t=>(st==='all'||t.status===st)&&(proj==='all'||t.project===proj)&&(pri==='all'||t.priority===pri)&&(!needle||(t.title+' '+t.notes+' '+t.project).toLowerCase().includes(needle))),sort);
- const pg=usePaged(shown,{size:20,key:[nav.view,nav.y,nav.m,q,st,proj,pri,sort].join('|'),store:'tasks'});
+ const pg=usePaged(shown,{size:20,key:[nav.view,nav.y,nav.m,q,st,proj,pri,sort,viewMode].join('|'),store:'tasks'});
  const showCards=nav.view==='work'&&!filterOn&&nav.m===null&&tasks.length>0;
 
  const safe=fn=>async(...a)=>{try{return await fn(...a);}catch(e){say(e.message);}};
@@ -79,7 +99,7 @@ export default function Workspace({user,onLogout,theme,onTheme}){
  const save=async(data,ex)=>{if(ex?._id){replace(await api('/tasks/'+ex._id,{method:'PUT',body:data}));say('Task updated');}
   else{const c=await api('/tasks',{method:'POST',body:data});setTasks(p=>[c,...p]);say('Task added');}};
  const patch=safe(async(t,body)=>replace(await api('/tasks/'+t._id,{method:'PUT',body})));
- const dup=safe(async t=>{const c=await api('/tasks',{method:'POST',body:{title:t.title+' (copy)',notes:t.notes,project:t.project,priority:t.priority,status:'todo',dueDate:t.dueDate,checklist:(t.checklist||[]).map(c=>({text:c.text,done:false}))}});setTasks(p=>[c,...p]);say('Task duplicated');});
+ const dup=safe(async t=>{const c=await api('/tasks',{method:'POST',body:{title:t.title+' (copy)',notes:t.notes,project:t.project,priority:t.priority,status:'todo',startDate:t.startDate||t.dueDate,dueDate:t.dueDate,checklist:(t.checklist||[]).map(c=>({text:c.text,done:false}))}});setTasks(p=>[c,...p]);say('Task duplicated');});
  const del=safe(async t=>{await api('/tasks/'+t._id,{method:'DELETE'});setTasks(p=>p.filter(x=>x._id!==t._id));say('Task deleted');});
 
  const cards=nav.y===null
@@ -87,7 +107,7 @@ export default function Workspace({user,onLogout,theme,onTheme}){
   :Object.keys(tree[nav.y]||{}).map(Number).sort((a,b)=>b-a).map(m=>({key:m,label:MONTHS[m],sub:`${tree[nav.y][m].length} task${tree[nav.y][m].length>1?'s':''}`,list:tree[nav.y][m],go:()=>go('work',nav.y,m),share:{folder:{year:nav.y,month:m,project:null},title:`${MONTHS[m]} ${nav.y}`}}));
 
  const title=smart?smart.title:nav.m!==null?`${MONTHS[nav.m]} ${nav.y}`:nav.y||'All work';
- const subtitle=smart?smart.sub:nav.m!==null?'Month folder':nav.y?'Month folders in this year':'Every task grouped into year and month folders.';
+ const subtitle=smart?smart.sub:nav.m!==null?'Month folder by start date':nav.y?'Month folders by start date':'Every task grouped by start date into year and month folders.';
 
  const sidebar=<nav className="tree">
   <button className={'nitem'+(nav.view==='dashboard'?' on':'')} onClick={()=>go('dashboard')}><Icon n="chart"/><span>Dashboard</span></button>
@@ -102,20 +122,21 @@ export default function Workspace({user,onLogout,theme,onTheme}){
    {nav.view==='work'&&nav.y===y&&<div className="sub">{Object.keys(tree[y]).map(Number).sort((a,b)=>b-a).map(m=>
     <button key={m} className={'nitem small'+(nav.m===m?' on':'')} onClick={()=>go('work',y,m)}><span>{MONTHS[m]}</span><em>{tree[y][m].length}</em></button>)}</div>}</div>)}
   <div className="kbd">Press <kbd>N</kbd> new task · <kbd>/</kbd> search</div>
-  <div className="ver">WorkZen v7.2 · Chat & History</div></nav>;
+  <div className="ver">WorkZen v1.0</div></nav>;
 
  const tab=(k,l,i,fn)=><button key={k} className={'btab'+((k==='work'?(nav.view==='work'||smart):nav.view===k)?' on':'')} onClick={fn}><Icon n={i} s={20}/><span>{l}</span></button>;
  const bottom=<nav className="bottombar">{tab('dashboard','Home','home',()=>go('dashboard'))}{tab('work','Tasks','list',()=>go('work'))}
   <button className="btab fab" aria-label="Add task" onClick={()=>setModal({})}><Icon n="plus" s={24}/></button>{tab('notes','Notes','note',()=>go('notes'))}{tab('bookmarks','Links','bookmark',()=>go('bookmarks'))}</nav>;
- return <Shell user={user} nav={sidebar} bottom={bottom} navKey={nav.view+nav.y+nav.m} onLogout={onLogout} onPassword={()=>setPw(true)} theme={theme} onTheme={onTheme}>
+ return <Shell user={user} nav={sidebar} bottom={bottom} navKey={nav.view+nav.y+nav.m} onLogout={onLogout} onPassword={()=>setPw(true)} onUserChange={onUserChange} theme={theme} onTheme={onTheme}>
   {nav.view==='bookmarks'?<Bookmarks say={say} ask={setAsk} onShare={b=>setShare({kind:'bookmark',item:b,title:b.title})}/>:nav.view==='notes'?<Notes say={say} ask={setAsk} onShare={n=>setShare({kind:'note',item:n,title:n.title||'Untitled note'})}/>:nav.view==='shared'?<Shared user={user} say={say} ask={setAsk} onChat={openChat} onCount={setSharedCount} onTaskCopied={t=>setTasks(p=>[t,...p])}/>:nav.view==='teams'?<Teams user={user} say={say} ask={setAsk} onChat={openChat} onCount={setTeamCount} onTaskCopied={t=>setTasks(p=>[t,...p])}/>:nav.view==='chats'?<Chat say={say} ask={setAsk} initial={chatTo} onUnread={setChatUnread}/>:nav.view==='reports'?<Reports user={user} tasks={tasks} say={say}/>:nav.view==='backup'?<Backup user={user} say={say} onRestored={()=>api('/tasks').then(setTasks)}/>:nav.view==='passwords'?<Vault vault={vault} say={say} ask={setAsk}/>:nav.view==='dashboard'?(loading?<div className="empty">Loading…</div>:<Dashboard user={user} tasks={tasks} onGo={go} onAdd={()=>setModal({})}/>):<>
   <div className="crumbs"><a onClick={()=>go('dashboard')}>Dashboard</a> › {smart?smart.title:<><a onClick={()=>go('work')}>All work</a>{nav.y&&<> › <a onClick={()=>go('work',nav.y)}>{nav.y}</a></>}{nav.m!==null&&<> › {MONTHS[nav.m]}</>}</>}</div>
   <div className="phead"><div><h1>{title}</h1><p className="muted">{subtitle}</p></div><div className="phbtns">{nav.view==='work'&&!!tasks.length&&<button className="btn" title="Share everything in this folder" onClick={()=>setShare({kind:'folder',folder:{year:nav.y,month:nav.m,project:proj!=='all'?proj:null},title:title+(proj!=='all'?` · ${proj}`:'')})}><Icon n="share"/> Share folder</button>}<button className="btn primary" onClick={()=>setModal({})}><Icon n="plus"/> Add task</button></div></div>
   <Stats s={stats(scoped)}/>
   <div className="filters"><div className="search"><Icon n="search"/><input ref={searchRef} placeholder="Search title, notes or project  ( / )" value={q} onChange={e=>setQ(e.target.value)}/></div>
-   <select value={st} onChange={e=>setSt(e.target.value)}><option value="all">All statuses</option><option value="todo">To do</option><option value="inprogress">In progress</option><option value="done">Done</option></select>
+   <select value={st} onChange={e=>setSt(e.target.value)}><option value="all">All statuses</option><option value="todo">Pending</option><option value="inprogress">In progress</option><option value="done">Done</option></select>
    <select value={pri} onChange={e=>setPri(e.target.value)}><option value="all">All priorities</option><option>High</option><option>Medium</option><option>Low</option></select>
    <select value={proj} onChange={e=>setProj(e.target.value)}><option value="all">All projects</option>{projects.map(p=><option key={p}>{p}</option>)}</select>
+   <select aria-label="Task view" value={viewMode} onChange={e=>{setViewMode(e.target.value);localStorage.setItem('workzen_task_view',e.target.value);}}><option value="list">List view</option><option value="cards">Checklist cards</option></select>
    {!showCards&&<select value={sort} onChange={e=>setSort(e.target.value)}>{Object.entries(SORTS).map(([k,v])=><option key={k} value={k}>Sort: {v}</option>)}</select>}
    <button className="btn" title="Export the tasks shown to CSV" disabled={!shown.length} onClick={()=>exportCSV(shown)}><Icon n="down"/> Export</button></div>
   {loading?<div className="empty">Loading…</div>
@@ -123,7 +144,8 @@ export default function Workspace({user,onLogout,theme,onTheme}){
   :showCards?<><div className="shead"><h3>{nav.y?'Month folders':'Year folders'}</h3><small>{cards.length} folder{cards.length>1?'s':''}</small></div>
     <div className="fgrid">{cards.map(c=><FolderCard key={c.key} label={c.label} sub={c.sub} list={c.list} onClick={c.go} onShare={()=>setShare({kind:'folder',...c.share})}/>)}</div></>
   :<><div className="shead"><h3>Tasks</h3><small>{shown.length} shown</small></div>
-    {shown.length?<>{pg.rows.map(t=><TaskRow key={t._id} t={t} onStatus={s=>patch(t,{status:s})} onSave={b=>patch(t,b)} onEdit={()=>setModal(t)} onDup={()=>dup(t)} onShare={()=>setShare({kind:'task',item:t,title:t.title})}
+    {shown.length?<>{viewMode==='cards'?<div className="taskcards">{pg.rows.map(t=><TaskCard key={t._id} t={t} onStatus={s=>patch(t,{status:s})} onSave={b=>patch(t,b)} onEdit={()=>setModal(t)} onDup={()=>dup(t)} onShare={()=>setShare({kind:'task',item:t,title:t.title})}
+      onDelete={()=>setAsk({title:'Delete task',message:`“${t.title}” will be permanently deleted.`,onYes:()=>del(t)})}/>)}</div>:pg.rows.map(t=><TaskRow key={t._id} t={t} onStatus={s=>patch(t,{status:s})} onSave={b=>patch(t,b)} onEdit={()=>setModal(t)} onDup={()=>dup(t)} onShare={()=>setShare({kind:'task',item:t,title:t.title})}
       onDelete={()=>setAsk({title:'Delete task',message:`“${t.title}” will be permanently deleted.`,onYes:()=>del(t)})}/>)}<Pagination {...pg} label="tasks"/></>:<div className="empty">No tasks match.</div>}</>}
   </>}
   {modal&&<TaskModal task={modal} projects={projects} onSave={d=>save(d,modal)} onClose={()=>setModal(null)}/>}

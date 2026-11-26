@@ -1,5 +1,6 @@
 import {useEffect,useLayoutEffect,useRef,useState} from 'react';
 import {api} from '../api.js';import Icon from './Icon.jsx';import Modal from './Modal.jsx';import {hue,fmtTime,dayLabel,dayKey} from '../utils.js';
+import UserAvatar from './UserAvatar.jsx';
 
 // conversation reference -> query string  ({type:'team',team:id} | {type:'direct',user:id} | {type:'item',kind,item} | {type:'folder',owner,year,month,project})
 const qs=(ref,extra={})=>{const p=new URLSearchParams();for(const [k,v] of Object.entries({...ref,...extra}))if(v!==null&&v!==undefined&&v!=='')p.set(k,String(v));return p.toString();};
@@ -68,8 +69,8 @@ export default function ChatPanel({chatRef,say,ask,onRead,height,header=true}){
 
  return <div className="chatp" style={height?{height}:undefined}>
   {header?<div className="chead">
-   <div className="cico" style={{background:`hsl(${hue(info?.title||'')} 55% 45%)`}}>{info?.type==='direct'?(info.title||'?')[0].toUpperCase():<Icon n={TYPE_ICON[info?.type]||'chat'} s={18}/>}</div>
-   <div className="grow cmeta"><b>{info?.title||'Chat'}</b><small>{info?.sub||' '}</small></div>
+   <div className="cico" style={{background:`hsl(${hue(info?.title||'')} 55% 45%)`}}>{info?.type==='direct'&&info.other?<UserAvatar user={{name:info.title,...info.other}} online={info.other.online}/>:info?.type==='direct'?(info.title||'?')[0].toUpperCase():<Icon n={TYPE_ICON[info?.type]||'chat'} s={18}/>}</div>
+   <div className="grow cmeta"><b>{info?.title||'Chat'}</b><small>{info?.sub||' '}{info?.type==='direct'&&info.other&&<span className={'presence-dot'+(info.other.online?' on':'')}>{info.other.online?'Online':'Offline'}</span>}</small></div>
    <button className={'iconbtn dark'+(sOpen?' on':'')} title="Search in this chat" onClick={()=>{setSOpen(!sOpen);if(sOpen){setSq('');}}}><Icon n="search" s={18}/></button>
   </div>:<div className="chead slim"><small className="grow">{info?.sub||' '}</small><button className={'iconbtn dark'+(sOpen?' on':'')} title="Search in this chat" onClick={()=>{setSOpen(!sOpen);if(sOpen){setSq('');}}}><Icon n="search" s={18}/></button></div>}
   {sOpen&&<div className="csearch"><div className="search"><Icon n="search"/><input autoFocus placeholder="Search messages" value={sq} onChange={e=>setSq(e.target.value)}/></div></div>}
@@ -81,7 +82,7 @@ export default function ChatPanel({chatRef,say,ask,onRead,height,header=true}){
     {rows.map(r=>{if(r.day)return <div className="mday" key={r.k}><span>{r.day}</span></div>;
      const {m,first}=r,mine=m.you,mine_edit=edit?.id===m.id,canDel=mine||info?.canModerate;
      return <div className={'msg'+(mine?' me':'')+(first?' first':'')} key={r.k}>
-      {!mine&&<div className="mav">{first&&<div className="aico" style={{background:`hsl(${hue(m.sender.username||m.sender.name)} 55% 45%)`}}>{(m.sender.name||'?')[0].toUpperCase()}</div>}</div>}
+      {!mine&&<div className="mav">{first&&<UserAvatar user={m.sender} className="aico" online={m.sender.online}/>}</div>}
       <div className="mcol">
        {first&&!mine&&<small className="mname">{m.sender.name}</small>}
        <div className="mline">

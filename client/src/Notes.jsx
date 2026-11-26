@@ -1,15 +1,15 @@
 import {useEffect,useMemo,useState} from 'react';import {api} from './api.js';
-import Icon from './components/Icon.jsx';import Modal from './components/Modal.jsx';import Pagination,{usePaged} from './components/Pagination.jsx';import {fmtDateTime} from './utils.js';
+import Icon from './components/Icon.jsx';import Modal from './components/Modal.jsx';import RichTextEditor from './components/RichTextEditor.jsx';import Pagination,{usePaged} from './components/Pagination.jsx';import {fmtDateTime} from './utils.js';import {richTextToText,sanitizeRichText} from './utils/richText.js';
 const COLORS=['default','yellow','green','blue','pink','purple'];
 
 function NoteModal({item,cats,onSave,onClose}){
  const [f,setF]=useState({title:'',content:'',category:'General',color:'default',pinned:false,...item}),[err,setErr]=useState(''),[busy,setBusy]=useState(false);
  const set=k=>e=>setF({...f,[k]:e.target.value});
  const go=async e=>{e.preventDefault();setBusy(true);setErr('');
-  try{await onSave({title:f.title,content:f.content,category:f.category,color:f.color,pinned:f.pinned});onClose();}catch(x){setErr(x.message);setBusy(false);}};
+  try{await onSave({title:f.title,content:sanitizeRichText(f.content),category:f.category,color:f.color,pinned:f.pinned});onClose();}catch(x){setErr(x.message);setBusy(false);}};
  return <Modal wide title={item?._id?'Edit note':'New note'} onClose={onClose}><form className="form" onSubmit={go}>
   <label>Title<input autoFocus={!item?._id} value={f.title} onChange={set('title')} maxLength={120} placeholder="Note title"/></label>
-  <label>Note<textarea className="notearea" rows="10" value={f.content} onChange={set('content')} placeholder="Write your note here…"/></label>
+  <label>Note<RichTextEditor value={f.content} onChange={content=>setF({...f,content})}/></label>
   <div className="grid2"><label>Category<input list="ncats" value={f.category} onChange={set('category')}/><datalist id="ncats">{cats.map(c=><option key={c} value={c}/>)}</datalist></label>
    <label className="chk fav"><input type="checkbox" checked={f.pinned} onChange={e=>setF({...f,pinned:e.target.checked})}/> Pin to top</label></div>
   <div className="colors" role="radiogroup" aria-label="Note colour">{COLORS.map(c=><button type="button" key={c} aria-label={c} className={'swatch nc-'+c+(f.color===c?' on':'')} onClick={()=>setF({...f,color:c})}>{f.color===c&&<Icon n="check" s={14}/>}</button>)}</div>
@@ -22,8 +22,10 @@ export default function Notes({say,ask,onShare}){
  const [list,setList]=useState([]),[loading,setLoading]=useState(true),[q,setQ]=useState(''),[cat,setCat]=useState('all'),[modal,setModal]=useState(null);
  useEffect(()=>{api('/notes').then(setList).catch(e=>say(e.message)).finally(()=>setLoading(false));},[]);
  const cats=useMemo(()=>[...new Set(list.map(n=>n.category))].sort(),[list]);
+ const plainContent=useMemo(()=>new Map(list.map(n=>[n._id,richTextToText(n.content)])),[list]);
+ const safeContent=useMemo(()=>new Map(list.map(n=>[n._id,sanitizeRichText(n.content)])),[list]);
  const needle=q.toLowerCase();
- const shown=list.filter(n=>(cat==='all'||n.category===cat)&&(!needle||(n.title+' '+n.content+' '+n.category).toLowerCase().includes(needle)))
+ const shown=list.filter(n=>(cat==='all'||n.category===cat)&&(!needle||(n.title+' '+plainContent.get(n._id)+' '+n.category).toLowerCase().includes(needle)))
   .sort((a,b)=>(b.pinned-a.pinned)||String(b.updatedAt).localeCompare(String(a.updatedAt)));
 
  const pg=usePaged(shown,{size:12,key:q+'|'+cat,store:'notes'});
@@ -45,7 +47,7 @@ export default function Notes({say,ask,onShare}){
   :<><div className="vgrid">{pg.rows.map(n=><div className={'vcard note nc-'+(n.color||'default')} key={n._id} onClick={()=>setModal(n)}>
    <div className="vtop"><div className="vmeta"><b>{n.title||'Untitled note'}</b><small>{fmtDateTime(n.updatedAt)}</small></div>
     <button className={'star'+(n.pinned?' on':'')} title={n.pinned?'Unpin':'Pin'} onClick={e=>{e.stopPropagation();pin(n);}}><Icon n="star" f={n.pinned}/></button></div>
-   {n.content&&<p className="vnotes">{n.content.slice(0,240)}{n.content.length>240?'…':''}</p>}
+   {n.content&&<div className="vnotes rich-preview" dangerouslySetInnerHTML={{__html:safeContent.get(n._id)}}/>}
    <div className="vfoot"><span className="tag">{n.category}</span><span className="grow"/>
     <button className="iconbtn dark" title="Share" onClick={e=>{e.stopPropagation();onShare(n);}}><Icon n="share"/></button>
     <button className="iconbtn dark" title="Edit" onClick={e=>{e.stopPropagation();setModal(n);}}><Icon n="edit"/></button>

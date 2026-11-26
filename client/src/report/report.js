@@ -9,7 +9,7 @@ const today=()=>dstr(new Date());
 const fmtD=s=>s?`${+s.slice(8,10)} ${MON[+s.slice(5,7)-1]} ${s.slice(0,4)}`:'—';
 const localD=iso=>iso?dstr(new Date(iso)):null;
 const dayNum=s=>Math.round(Date.UTC(+s.slice(0,4),+s.slice(5,7)-1,+s.slice(8,10))/864e5);
-const STAT={todo:'To do',inprogress:'In progress',done:'Done'};
+const STAT={todo:'Pending',inprogress:'In progress',done:'Done'};
 const PRI={High:C.red,Medium:C.amber,Low:C.green};
 
 // ------------------------------------------------------------------ analysis
@@ -82,7 +82,7 @@ export function buildReport({user,tasks,period,opts={}}){
  }else{
  // ---------- KPI cards
  const cw=(CW-30)/4,ch=66;
- const K=[['Total tasks',String(A.total),'in this period',C.blue],['Completed',String(A.done),`${A.rate}% completion`,C.green],['Still open',String(A.open),`${A.todo} to do · ${A.inprogress} in progress`,C.amber],['Overdue',String(A.overdue),'open and past due date',A.overdue?C.red:C.green],
+ const K=[['Total tasks',String(A.total),'in this period',C.blue],['Completed',String(A.done),`${A.rate}% completion`,C.green],['Still open',String(A.open),`${A.todo} pending · ${A.inprogress} in progress`,C.amber],['Overdue',String(A.overdue),'open and past due date',A.overdue?C.red:C.green],
   ['Completion rate',A.rate+'%',`${A.done} of ${A.total} tasks done`,C.teal],['On-time rate',A.onTimePct===null?'—':A.onTimePct+'%',A.done?`${A.onTime} of ${A.done} done by due date`:'no completed tasks',C.blue],
   ['High priority open',String(A.highOpen),A.highOpen?'need attention first':'all clear',A.highOpen?C.red:C.green],['Avg. time to finish',A.avg===null?'—':(A.avg<1?'<1':A.avg.toFixed(1))+' d','from creation to done',C.navy2]];
  K.forEach((k,i)=>card(L+(i%4)*(cw+10),y+Math.floor(i/4)*(ch+10),cw,ch,...k));
@@ -91,7 +91,7 @@ export function buildReport({user,tasks,period,opts={}}){
  // ---------- progress overview
  h2('Progress overview','Status and priority');
  const top=y,cx=L+72,cy=top+76,r2=64,r1=42;
- const segs=[['Done',A.done,C.green],['In progress',A.inprogress,C.blue],['To do',A.todo,C.amber]];
+ const segs=[['Done',A.done,C.green],['In progress',A.inprogress,C.blue],['Pending',A.todo,C.amber]];
  let a=0;for(const [,v,col] of segs){if(!v)continue;const sw=v/A.total*360;pdf.arc(cx,cy,r1,r2,a,Math.min(360,a+sw)-(A.total===v?0.01:0.6),{fill:col});a+=sw;}
  pdf.text(cx,cy+4,A.rate+'%',{size:22,bold:true,color:C.ink,align:'center'});pdf.text(cx,cy+16,'complete',{size:8,color:C.gray,align:'center'});
  segs.forEach(([lb,v,col],i)=>{const yy=top+36+i*30;pdf.rect(L+160,yy-8,10,10,{fill:col,r:2.5});pdf.text(L+178,yy,lb,{size:10,bold:true});

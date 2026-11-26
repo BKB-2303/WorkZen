@@ -6,9 +6,11 @@ export default function App(){
  useEffect(()=>{document.documentElement.dataset.theme=theme;localStorage.setItem('bkb_theme',theme);},[theme]);
  useEffect(()=>{if(!localStorage.getItem('bkb_token'))return setReady(true);
   api('/auth/me').then(setUser).catch(()=>localStorage.removeItem('bkb_token')).finally(()=>setReady(true));},[]);
+ useEffect(()=>{if(!user)return;const ping=()=>api('/auth/presence',{method:'POST'}).catch(()=>{});
+  ping();const id=setInterval(ping,30000);return()=>clearInterval(id);},[user?.id]);
  const logout=()=>{localStorage.removeItem('bkb_token');setUser(null);};
  const toggle=()=>setTheme(t=>t==='dark'?'light':'dark');
  if(!ready)return <div className="loginbg"><div className="muted">Loading…</div></div>;
  if(!user)return <Login onLogin={setUser}/>;
- return user.role==='admin'?<AdminUsers user={user} onLogout={logout} theme={theme} onTheme={toggle}/>:<Workspace user={user} onLogout={logout} theme={theme} onTheme={toggle}/>;
+ return user.role==='admin'?<AdminUsers user={user} onUserChange={setUser} onLogout={logout} theme={theme} onTheme={toggle}/>:<Workspace user={user} onUserChange={setUser} onLogout={logout} theme={theme} onTheme={toggle}/>;
 }

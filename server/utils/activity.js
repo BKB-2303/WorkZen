@@ -1,6 +1,6 @@
 const Activity=require('../models/Activity');
-const L={title:'Title',notes:'Notes',project:'Project',priority:'Priority',status:'Status',dueDate:'Due date',content:'Content',category:'Category',color:'Colour',url:'Website',description:'Description'};
-const ST={todo:'To do',inprogress:'In progress',done:'Done'};
+const L={title:'Title',notes:'Notes',project:'Project',priority:'Priority',status:'Status',startDate:'Start date',dueDate:'Due date',content:'Content',category:'Category',color:'Colour',url:'Website',description:'Description'};
+const ST={todo:'Pending',inprogress:'In progress',done:'Done'};
 const sh=(v,f)=>{v=v==null?'':String(v);if(f==='status')return ST[v]||v;return v.length>80?v.slice(0,77)+'…':v;};
 // list of {field,from,to} describing what changed between two versions of an item
 exports.diff=(a={},b={})=>{

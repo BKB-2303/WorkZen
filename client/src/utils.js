@@ -1,5 +1,5 @@
 export const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
-export const STATUS={todo:'To do',inprogress:'In progress',done:'Done'};
+export const STATUS={todo:'Pending',inprogress:'In progress',done:'Done'};
 const PRIO={High:0,Medium:1,Low:2};
 const pad=n=>String(n).padStart(2,'0');
 export const dstr=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
@@ -27,8 +27,8 @@ export const genPassword=()=>{const c='ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrs
  for(const n of crypto.getRandomValues(new Uint32Array(10)))p+=c[n%c.length];return p;};
 export const exportCSV=list=>{
  const q=v=>`"${String(v??'').replace(/"/g,'""')}"`;
- const rows=[['Title','Project','Status','Priority','Due date','Notes','Checklist','Created','Completed'],
-  ...list.map(t=>[t.title,t.project,STATUS[t.status],t.priority,t.dueDate,t.notes,(t.checklist||[]).map(c=>(c.done?'[x] ':'[ ] ')+c.text).join('; '),fmtDateTime(t.createdAt),fmtDateTime(t.completedAt)])];
+ const rows=[['Title','Project','Status','Priority','Start date','Due date','Notes','Checklist','Created','Completed'],
+  ...list.map(t=>[t.title,t.project,STATUS[t.status],t.priority,t.startDate||t.dueDate,t.dueDate,t.notes,(t.checklist||[]).map(c=>(c.done?'[x] ':'[ ] ')+c.text).join('; '),fmtDateTime(t.createdAt),fmtDateTime(t.completedAt)])];
  const blob=new Blob(['\ufeff'+rows.map(r=>r.map(q).join(',')).join('\r\n')],{type:'text/csv'});
  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`workzen-${todayStr()}.csv`;a.click();URL.revokeObjectURL(a.href);
 };

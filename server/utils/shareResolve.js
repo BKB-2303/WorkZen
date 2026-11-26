@@ -1,13 +1,16 @@
 const Task=require('../models/Task'),Note=require('../models/Note'),Bookmark=require('../models/Bookmark'),Share=require('../models/Share');
 const M={task:Task,note:Note,bookmark:Bookmark};
 const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
-const person=u=>u?{id:u._id,name:u.name||u.username,username:u.username}:null;
+const person=u=>u?{id:u._id,name:u.name||u.username,username:u.username,avatar:u.avatar||'',online:!!u.lastSeen&&Date.now()-new Date(u.lastSeen).getTime()<90000}:null;
 const strip=d=>{const {user,...rest}=d;return rest;};
 const folderLabel=f=>{f=f||{};const p=[];if(f.year)p.push(f.year);if(f.month!=null)p.push(MONTHS[f.month]);if(f.project)p.push(f.year?f.project:'Project '+f.project);return p.length?p.join(' › '):'All tasks';};
 // tasks that belong to a shared folder (always live: new tasks added to the folder appear automatically)
 const folderQuery=s=>{
  const f=s.folder||{},q={user:s.from._id||s.from};
- if(f.year)q.dueDate=new RegExp('^'+f.year+(f.month!=null?'-'+String(f.month+1).padStart(2,'0'):''));
+ if(f.year){
+  const date=new RegExp('^'+f.year+(f.month!=null?'-'+String(f.month+1).padStart(2,'0'):''));
+  q.$or=[{startDate:date},{startDate:{$in:['',null]},dueDate:date}];
+ }
  if(f.project)q.project=f.project;
  return q;
 };

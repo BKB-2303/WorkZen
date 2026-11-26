@@ -1,7 +1,8 @@
 // Field whitelists used when someone edits an item (own or shared with edit permission)
 exports.task=b=>{
- const o={};for(const k of ['title','notes','project','priority','status','dueDate'])if(b[k]!==undefined)o[k]=b[k];
+ const o={};for(const k of ['title','notes','project','priority','status','startDate','dueDate'])if(b[k]!==undefined)o[k]=b[k];
  if(o.project==='')o.project='General';
+ if(o.startDate&&o.dueDate&&o.startDate>o.dueDate)throw new Error('Start date must be on or before the due date');
  if(Array.isArray(b.checklist))o.checklist=b.checklist.slice(0,50).map(c=>({text:String(c.text||'').slice(0,200),done:!!c.done})).filter(c=>c.text.trim());
  if(o.status!==undefined)o.completedAt=o.status==='done'?new Date():null;
  return o;

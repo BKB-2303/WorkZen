@@ -15,7 +15,7 @@ const validUsers=async ids=>ids.length?(await User.find({_id:{$in:ids},...requir
 const ids=a=>[...new Set((Array.isArray(a)?a:[]).map(String))].slice(0,100);
 
 const view=async(teams,me)=>{
- const full=await Team.populate(teams,{path:'members.user',select:'name username active'});
+ const full=await Team.populate(teams,{path:'members.user',select:'name username active lastSeen'});
  const counts=await Share.aggregate([{$match:{team:{$in:full.map(t=>t._id)}}},{$group:{_id:'$team',n:{$sum:1}}}]);
  const cm=Object.fromEntries(counts.map(c=>[String(c._id),c.n]));
  return full.map(t=>({

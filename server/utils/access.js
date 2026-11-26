@@ -35,7 +35,7 @@ async function resolveThread(me,q={}){
  }
  if(type==='direct'){
   if(!isId(q.user)||String(q.user)===String(me))throw err('Person not found',404);
-  const u=await User.findById(q.user).select('name username role active').lean();
+  const u=await User.findById(q.user).select('name username role active avatar lastSeen').lean();
   if(!u)throw err('Person not found',404);
   if(u.role==='admin'||u.active===false)throw err('This person is not available for messages',404);
   return {key:keys.dm(me,u._id),scope:'direct',pair:[me,u._id],title:u.name||u.username,sub:'@'+u.username,other:person(u),canModerate:false};

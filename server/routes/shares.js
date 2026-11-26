@@ -3,6 +3,7 @@ const Share=require('../models/Share'),User=require('../models/User'),Team=requi
 const {auth,userOnly}=require('../middleware/auth');
 const P=require('../utils/pickers'),A=require('../utils/activity'),{paged}=require('../utils/paging'),Message=require('../models/Message');
 const {M,person,folderLabel,folderQuery,resolve,scopeIds}=require('../utils/shareResolve');
+const TaskProgress=require('../models/TaskProgress');
 r.use(auth,userOnly);
 const wrap=fn=>(req,res,next)=>fn(req,res,next).catch(e=>res.status(400).json({message:e.message||'Bad request'}));
 const myTeamIds=async uid=>(await Team.find({'members.user':uid}).select('_id').lean()).map(t=>t._id);
@@ -34,7 +35,7 @@ const OWNER_ONLY=['shared','unshared','permission','copied'];
 
 // people I can share with (other active normal users)
 r.get('/users',wrap(async(req,res)=>{
- const us=await User.find({...require('../utils/people').normal(),_id:{$ne:req.user._id}}).sort({name:1,username:1}).limit(500).lean();
+ const us=await User.find({...require('../utils/people').normal(),_id:{$ne:req.user._id}}).select('name username lastSeen').sort({name:1,username:1}).limit(500).lean();
  res.json(us.map(person));
 }));
 
@@ -92,11 +93,15 @@ r.get('/activity',wrap(async(req,res)=>{
 // everything shared with me, directly or through my teams (live view of the owner's data)
 r.get('/received',wrap(async(req,res)=>{
  const me=req.user._id;
- const l=await Share.find(await visible(me)).sort({createdAt:-1}).populate('from','name username active').populate('team','name').lean();
+ const l=await Share.find(await visible(me)).sort({createdAt:-1}).populate('from','name username active lastSeen').populate('team','name').lean();
  const all=await resolve(l,me),seen=new Map();
  for(const s of all){ // same thing shared twice (directly + via team): show once, keep the more generous access
   const key=[s.from.id,s.kind,s.item?s.item._id:s.label].join('|'),o=seen.get(key);
-  if(!o)seen.set(key,s);else seen.set(key,{...o,perm:o.perm==='edit'||s.perm==='edit'?'edit':'view',canCopy:o.canCopy||s.canCopy});
+  if(!o)seen.set(key,s);else{
+   const teamAccess=o.team?o:s.team?s:null;
+   seen.set(key,{...o,perm:o.perm==='edit'||s.perm==='edit'?'edit':'view',canCopy:o.canCopy||s.canCopy,
+    team:o.team||s.team||null,progressShareId:teamAccess?.id||o.progressShareId});
+  }
  }
  res.json([...seen.values()]);
 }));
@@ -142,7 +147,7 @@ r.delete('/:id',wrap(async(req,res)=>{
 }));
 
 const clone=(k,d,u)=>{
- if(k==='task')return Task.create({user:u,title:d.title,notes:d.notes,project:d.project,priority:d.priority,status:'todo',dueDate:d.dueDate,checklist:(d.checklist||[]).map(x=>({text:x.text,done:false}))});
+ if(k==='task')return Task.create({user:u,title:d.title,notes:d.notes,project:d.project,priority:d.priority,status:'todo',startDate:d.startDate||d.dueDate,dueDate:d.dueDate,checklist:(d.checklist||[]).map(x=>({text:x.text,done:false}))});
  if(k==='note')return Note.create({user:u,title:d.title,content:d.content,category:d.category,color:d.color});
  return Bookmark.create({user:u,title:d.title,url:d.url,description:d.description,category:d.category});
 };
@@ -179,11 +184,61 @@ r.put('/:id/item/:itemId',wrap(async(req,res)=>{
   if(!(await Task.exists({...folderQuery(s),_id:req.params.itemId})))return res.status(404).json({message:'Not found'});
  }else if(String(s.item)!==String(req.params.itemId))return res.status(404).json({message:'Not found'});
  const before=await M[kind].findOne({_id:req.params.itemId,user:s.from}).lean();
+ if(kind==='task'){
+  const body=req.body||{},start=body.startDate||before?.startDate||before?.dueDate,due=body.dueDate||before?.dueDate;
+  if(start&&due&&start>due)throw new Error('Start date must be on or before the due date');
+ }
  const doc=await M[kind].findOneAndUpdate({_id:req.params.itemId,user:s.from},P[kind](req.body||{}),{new:true,runValidators:true}).lean();
  if(!doc||!before)return res.status(404).json({message:'The original no longer exists'});
  const changes=A.diff(before,doc);
  if(changes.length)await A.log({actor:me,owner:s.from,team:s.team,kind,item:doc._id,title:doc.title||'Untitled note',action:'edited',changes});
  const {user,...rest}=doc;res.json(rest);
+}));
+
+const taskForProgress=async(s,itemId)=>{
+ if(s.kind==='task'&&String(s.item)===String(itemId))return Task.findOne({_id:itemId,user:s.from}).lean();
+ if(s.kind==='folder')return Task.findOne({...folderQuery(s),_id:itemId}).lean();
+ return null;
+};
+const progressRow=p=>({user:p.user?{id:p.user._id,name:p.user.name||p.user.username,avatar:p.user.avatar||''}:null,
+ status:p.status,checklist:p.checklist||[],completedAt:p.completedAt||null});
+
+r.get('/:id/item/:itemId/progress',wrap(async(req,res)=>{
+ const me=req.user._id,s=await Share.findOne({_id:req.params.id,...await anyAccess(me)}).lean();
+ if(!s)return res.status(404).json({message:'Not found'});
+ const task=await taskForProgress(s,req.params.itemId);if(!task)return res.status(404).json({message:'Not found'});
+ let teamMembers=[];
+ let memberIds=[me];
+ if(s.team){
+  const team=await Team.findOne({_id:s.team,'members.user':me}).populate('members.user','name username').lean();
+  if(!team)return res.status(403).json({message:'You are no longer a member of this team'});
+  teamMembers=team.members.map(m=>m.user).filter(Boolean);
+  memberIds=teamMembers.map(u=>u._id);
+ }
+ const rows=await TaskProgress.find({task:task._id,user:{$in:memberIds}}).populate('user','name username').lean();
+ const mine=rows.find(p=>String(p.user._id)===String(me));
+ const byUser=new Map(rows.map(p=>[String(p.user._id),p]));
+ const members=teamMembers.length?teamMembers.map(u=>progressRow(byUser.get(String(u._id))||{
+  user:u,status:'todo',checklist:(task.checklist||[]).map(()=>false),completedAt:null
+ })):rows.map(progressRow);
+ res.json({mine:mine?progressRow(mine):{user:{id:me},status:'todo',checklist:(task.checklist||[]).map(()=>false),completedAt:null},
+  members});
+}));
+
+r.put('/:id/item/:itemId/progress',wrap(async(req,res)=>{
+ const me=req.user._id,s=await Share.findOne({_id:req.params.id,...await anyAccess(me)}).lean();
+ if(!s)return res.status(404).json({message:'Not found'});
+ const task=await taskForProgress(s,req.params.itemId);if(!task)return res.status(404).json({message:'Not found'});
+ const status=['todo','inprogress','done'].includes(req.body?.status)?req.body.status:null;
+ if(!status)throw new Error('Choose a valid completion status');
+ const previous=await TaskProgress.findOne({task:task._id,user:me}).select('checklist').lean();
+ const checklist=Array.isArray(req.body?.checklist)
+  ?(task.checklist||[]).map((_,i)=>!!req.body.checklist[i])
+  :previous?.checklist|| (task.checklist||[]).map(()=>false);
+ const row=await TaskProgress.findOneAndUpdate({task:task._id,user:me},
+  {$set:{status,checklist,completedAt:status==='done'?new Date():null}},
+  {new:true,upsert:true,setDefaultsOnInsert:true,runValidators:true}).populate('user','name username').lean();
+ res.json(progressRow(row));
 }));
 
 // history + comments for one shared thing (owner or anyone it is shared with)

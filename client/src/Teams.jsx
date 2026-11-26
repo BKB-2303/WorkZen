@@ -1,4 +1,4 @@
-import {useEffect,useState} from 'react';import {api} from './api.js';import Icon from './components/Icon.jsx';import Modal from './components/Modal.jsx';import PeoplePicker from './components/PeoplePicker.jsx';
+import {useEffect,useState} from 'react';import {api} from './api.js';import Icon from './components/Icon.jsx';import Modal from './components/Modal.jsx';import PeoplePicker from './components/PeoplePicker.jsx';import UserAvatar from './components/UserAvatar.jsx';
 import {SharedBrowser} from './Shared.jsx';import HistoryView from './components/HistoryView.jsx';import ChatPanel from './components/ChatPanel.jsx';import Pagination,{usePaged} from './components/Pagination.jsx';import {fmtDate,hue} from './utils.js';
 
 function TeamForm({team,onSave,onClose}){
@@ -43,7 +43,7 @@ function TeamDetail({team,user,say,ask,initialTab,onBack,onChange,onLeft,onDelet
    <div className="phbtns">{manage&&<button className="btn" onClick={()=>setForm(true)}><Icon n="edit"/> Edit</button>}{manage&&<button className="btn primary" onClick={()=>setAdd(true)}><Icon n="plus"/> Add members</button>}</div></div>
   <div className="panel"><h3><Icon n="users"/> Members <span className="badge">{team.members.length}</span></h3>
    {mp.rows.map(m=><div className="prow" key={m.id}>
-    <div className="avatar sm" style={{background:`hsl(${hue(m.username)} 55% 45%)`}}>{(m.name||'?')[0].toUpperCase()}</div>
+    <UserAvatar user={m} className="sm" online={m.online}/>
     <div className="grow"><b>{m.name}{m.id===user.id&&' (you)'}</b><small>@{m.username}</small></div>
     {owner&&m.role!=='owner'?<select className="permsel" value={m.role} onChange={e=>setRole(m,e.target.value)}><option value="member">Member</option><option value="admin">Admin</option></select>
      :<span className={'tag '+(m.role==='member'?'':'st-inprogress')}>{m.role==='owner'?'Owner':m.role==='admin'?'Admin':'Member'}</span>}

@@ -1,14 +1,16 @@
 import {useEffect,useMemo,useState} from 'react';import {api} from './api.js';import Icon from './components/Icon.jsx';import Modal from './components/Modal.jsx';import TaskModal from './components/TaskModal.jsx';
 import HistoryView from './components/HistoryView.jsx';import ChatPanel,{ChatModal} from './components/ChatPanel.jsx';import Pagination,{usePaged} from './components/Pagination.jsx';
 import {STATUS,fmtDate,fmtDateTime,host,hue,dueLabel,isOverdue,chatKey} from './utils.js';
+import RichTextEditor from './components/RichTextEditor.jsx';import {richTextToText,sanitizeRichText} from './utils/richText.js';
+import UserAvatar from './components/UserAvatar.jsx';
 const KL={task:'Task',note:'Note',bookmark:'Bookmark',folder:'Folder'};
 const KI={task:'list',note:'note',bookmark:'bookmark',folder:'folder'};
 const titleOf=s=>s.kind==='folder'?s.label:(s.item.title||'Untitled note');
 
 function Body({kind,item}){
  const [more,setMore]=useState(false);
- if(kind==='note'){const long=item.content.length>600;return <>
-  <p className="sprose">{more||!long?item.content:item.content.slice(0,600)+'…'}</p>
+ if(kind==='note'){const text=richTextToText(item.content),long=text.length>600;return <>
+  <div className="sprose rich-preview" dangerouslySetInnerHTML={{__html:sanitizeRichText(more||!long?item.content:text.slice(0,600)+'…')}}/>
   {long&&<button className="linkbtn" onClick={()=>setMore(!more)}>{more?'Show less':'Read more'}</button>}
   <div className="tags"><span className="tag">{item.category}</span></div></>;}
  return <>{item.description&&<p className="sprose">{item.description}</p>}<div className="tags"><span className="tag">{item.category}</span></div>
@@ -23,14 +25,37 @@ function SimpleEdit({kind,doc,onSave,onClose}){
   ok?onClose():setBusy(false);};
  return <Modal wide title={`Edit shared ${kind}`} onClose={onClose}><form className="form" onSubmit={go}>
   <label>Title<input value={f.title||''} onChange={set('title')} maxLength={120}/></label>
-  {kind==='note'?<label>Note<textarea rows="8" value={f.content||''} onChange={set('content')}/></label>
+  {kind==='note'?<label>Note<RichTextEditor value={f.content||''} onChange={content=>setF({...f,content})}/></label>
    :<><label>Website<input value={f.url||''} onChange={set('url')}/></label><label>Description<input value={f.description||''} onChange={set('description')} maxLength={300}/></label></>}
   <label>Category<input value={f.category||''} onChange={set('category')} maxLength={40}/></label>
   <div className="actions"><button type="button" className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={busy}>Save changes</button></div></form></Modal>;
 }
 
 // A task. Status / checklist changes are only DRAFTS until "Save changes" is pressed.
-function TaskPane({t,canEdit,onSave,onFull}){
+function MemberProgress({shareId,t,say}){
+ const [progress,setProgress]=useState(null),[busy,setBusy]=useState(false);
+ useEffect(()=>{let live=true;const load=()=>api(`/shares/${shareId}/item/${t._id}/progress`).then(d=>{if(live)setProgress(d);}).catch(e=>{if(live)say(e.message);});
+  load();const id=setInterval(()=>document.visibilityState==='visible'&&load(),15000);return()=>{live=false;clearInterval(id);};},[shareId,t._id]);
+ const save=async next=>{
+  setBusy(true);
+  try{const mine=await api(`/shares/${shareId}/item/${t._id}/progress`,{method:'PUT',body:next});
+   setProgress(p=>({...p,mine,members:[...(p?.members||[]).filter(x=>x.user?.id!==mine.user?.id),mine]}));
+  }catch(e){say(e.message);}finally{setBusy(false);}
+ };
+ if(!progress)return <div className="member-progress"><small className="muted">Loading your individual progress…</small></div>;
+ const mine=progress.mine,items=t.checklist||[];
+ const checklist=items.map((_,i)=>!!mine.checklist?.[i]);
+ return <section className="member-progress">
+  <div className="progress-title"><div><b>My completion</b><small>Personal progress — does not change the shared task status.</small></div><span className="tag">{STATUS[mine.status]}</span></div>
+  <div className="seg">{Object.entries(STATUS).map(([k,v])=><button type="button" key={k} disabled={busy} className={mine.status===k?'on':''} onClick={()=>save({status:k,checklist})}>{v}</button>)}</div>
+  {items.length>0&&<div className="cl">
+   {items.map((c,i)=><label className="citem" key={i}><input type="checkbox" disabled={busy} checked={checklist[i]} onChange={e=>save({status:mine.status,checklist:checklist.map((v,j)=>j===i?e.target.checked:v)})}/><span className={checklist[i]?'strike':''}>{c.text}</span></label>)}
+  </div>}
+  {progress.members.length>0&&<div className="member-updates"><small>TEAM UPDATES · {progress.members.filter(m=>m.status==='done').length}/{progress.members.length} done</small>{progress.members.map((m,i)=><div className="member-update" key={m.user?.id||i}><span>{m.user?.name||'Member'}{m.user?.id===mine.user?.id?' (you)':''}{items.length>0&&<small> · {(m.checklist||[]).filter(Boolean).length}/{items.length} steps</small>}</span><b className={'tag st-'+m.status}>{STATUS[m.status]}</b></div>)}</div>}
+ </section>;
+}
+
+function TaskPane({t,canEdit,onSave,onFull,shareId,say}){
  const base=()=>({status:t.status,checklist:t.checklist||[]});
  const [d,setD]=useState(base),[busy,setBusy]=useState(false);
  useEffect(()=>{setD(base());},[t._id,t.updatedAt]);
@@ -39,7 +64,7 @@ function TaskPane({t,canEdit,onSave,onFull}){
  const cl=d.checklist,cd=cl.filter(c=>c.done).length;
  return <div className="tpane">
   <div className="tags"><span className={'tag pr-'+t.priority}>{t.priority} priority</span><span className="tag">{t.project}</span>{isOverdue(t)&&<span className="tag st-overdue">Overdue</span>}</div>
-  <div className="kv"><div><small>DUE</small><b className={isOverdue(t)?'c-red':''}>{fmtDate(t.dueDate)} · {dueLabel(t)}</b></div><div><small>CREATED</small><b>{fmtDateTime(t.createdAt)}</b></div>{t.completedAt&&t.status==='done'&&<div><small>COMPLETED</small><b>{fmtDateTime(t.completedAt)}</b></div>}</div>
+  <div className="kv"><div><small>START</small><b>{fmtDate(t.startDate||t.dueDate)}</b></div><div><small>DUE</small><b className={isOverdue(t)?'c-red':''}>{fmtDate(t.dueDate)} · {dueLabel(t)}</b></div><div><small>CREATED</small><b>{fmtDateTime(t.createdAt)}</b></div>{t.completedAt&&t.status==='done'&&<div><small>COMPLETED</small><b>{fmtDateTime(t.completedAt)}</b></div>}</div>
   {t.notes?<p className="sprose">{t.notes}</p>:<p className="muted" style={{margin:0}}>No notes.</p>}
   <div><small className="lbl" style={{marginBottom:6}}>STATUS</small>
    {canEdit?<div className="seg">{Object.entries(STATUS).map(([k,v])=><button key={k} className={d.status===k?'on':''} onClick={()=>setD({...d,status:k})}>{v}</button>)}</div>:<span className={'tag st-'+t.status}>{STATUS[t.status]}</span>}</div>
@@ -47,6 +72,7 @@ function TaskPane({t,canEdit,onSave,onFull}){
    {cl.map((c,i)=><label className="citem" key={i}><input type="checkbox" disabled={!canEdit} checked={c.done} onChange={()=>setD({...d,checklist:cl.map((x,j)=>j===i?{...x,done:!x.done}:x)})}/><span className={c.done?'strike':''}>{c.text}</span></label>)}</div>}
   {canEdit&&<div className="tact"><button className="btn small" onClick={onFull}><Icon n="edit" s={14}/> Edit all details</button></div>}
   {dirty&&<div className="savebar"><span>You have unsaved changes</span><span className="grow"/><button className="btn small" disabled={busy} onClick={()=>setD(base())}>Discard</button><button className="btn small primary" disabled={busy} onClick={save}>{busy?'Saving…':'Save changes'}</button></div>}
+  {shareId&&<MemberProgress shareId={shareId} t={t} say={say}/>}
  </div>;
 }
 
@@ -58,9 +84,9 @@ function FolderPane({s,onOpen}){
  return <div className="tpane">
   <div className="kv"><div><small>TASKS</small><b>{ts.length}</b></div><div><small>DONE</small><b className="c-green">{done}</b></div><div><small>OPEN</small><b>{ts.length-done}</b></div><div><small>OVERDUE</small><b className={od?'c-red':''}>{od}</b></div></div>
   <div className="bar"><i style={{width:(ts.length?done/ts.length*100:0)+'%'}}/></div>
-  <div className="chips">{[['all','All'],['todo','To do'],['inprogress','In progress'],['done','Done'],['overdue','Overdue']].map(([k,l])=><button key={k} className={'chip'+(f===k?' on':'')} onClick={()=>setF(k)}>{l}</button>)}</div>
+  <div className="chips">{[['all','All'],['todo','Pending'],['inprogress','In progress'],['done','Done'],['overdue','Overdue']].map(([k,l])=><button key={k} className={'chip'+(f===k?' on':'')} onClick={()=>setF(k)}>{l}</button>)}</div>
   {!shown.length?<small className="muted">No tasks here.</small>:<><div className="ftable">{pg.rows.map(t=><button className="ftask" key={t._id} onClick={()=>onOpen(t._id)}>
-   <i className={'sdot st-'+(isOverdue(t)?'overdue':t.status)}/><b className={t.status==='done'?'strike':''}>{t.title}</b><span className={'tag pr-'+t.priority}>{t.priority}</span><small>{fmtDate(t.dueDate)}</small><Icon n="chev" s={14}/></button>)}</div><Pagination {...pg} compact label="tasks"/></>}
+   <i className={'sdot st-'+(isOverdue(t)?'overdue':t.status)}/><b className={t.status==='done'?'strike':''}>{t.title}</b><span className={'tag pr-'+t.priority}>{t.priority}</span><small>Start {fmtDate(t.startDate||t.dueDate)}</small><small>Due {fmtDate(t.dueDate)}</small><Icon n="chev" s={14}/></button>)}</div><Pagination {...pg} compact label="tasks"/></>}
  </div>;
 }
 
@@ -83,7 +109,7 @@ function Detail({s,say,ask,upd,onGone,onTaskCopied,onBack,onChat}){
   :{type:'item',kind:folder?'task':s.kind,item:folder?cur._id:s.item._id};
  return <div className="sdetail">
   <button className="btn small sback" onClick={onBack}>← Back to list</button>
-  <div className="dhead"><div className="dico" style={{background:`hsl(${hue(s.from.username)} 55% 45%)`}}><Icon n={KI[s.kind]} s={20}/></div>
+  <div className="dhead">{s.from.avatar?<UserAvatar user={s.from} className="dico" online={s.from.online}/>:<div className="dico" style={{background:`hsl(${hue(s.from.username)} 55% 45%)`}}><Icon n={KI[s.kind]} s={20}/></div>}
    <div className="grow"><h2>{title}</h2><small>{KL[s.kind]} · {s.mine?'shared by you':`from ${s.from.name}`}{s.team?` · via team ${s.team.name}`:''} · {fmtDateTime(s.sharedAt)}</small></div>
    <div className="dhbtns"><button className="btn small" title="Open the chat about this" onClick={()=>setTab('chat')}><Icon n="chat" s={14}/> Chat</button>
     {!s.mine&&onChat&&<button className="btn small" title={`Send ${s.from.name} a private message`} onClick={()=>onChat({type:'direct',user:s.from.id},s.from.name)}>Message {s.from.name.split(' ')[0]}</button>}</div></div>
@@ -92,8 +118,8 @@ function Detail({s,say,ask,upd,onGone,onTaskCopied,onBack,onChat}){
   <div className="seg tabs three dtabs" role="tablist">{[['details','Details','list'],['chat','Chat','chat'],['history','History','clock']].map(([id,l,ic])=><button key={id} role="tab" aria-selected={tab===id} className={tab===id?'on':''} onClick={()=>setTab(id)}><Icon n={ic} s={14}/> {l}</button>)}</div>
   {tab==='details'&&<>
    <div className="dbody">
-    {folder?(cur?<TaskPane t={cur} canEdit={canEdit} onSave={b=>save(cur,b)} onFull={()=>setEd(cur)}/>:<FolderPane s={s} onOpen={setSub}/>)
-     :s.kind==='task'?<TaskPane t={s.item} canEdit={canEdit} onSave={b=>save(s.item,b)} onFull={()=>setEd(s.item)}/>
+    {folder?(cur?<TaskPane t={cur} canEdit={canEdit} onSave={b=>save(cur,b)} onFull={()=>setEd(cur)} shareId={s.progressShareId||s.id} say={say}/>:<FolderPane s={s} onOpen={setSub}/>)
+     :s.kind==='task'?<TaskPane t={s.item} canEdit={canEdit} onSave={b=>save(s.item,b)} onFull={()=>setEd(s.item)} shareId={s.progressShareId||s.id} say={say}/>
      :<div className="tpane"><Body kind={s.kind} item={s.item}/>{canEdit&&<div className="tact"><button className="btn small" onClick={()=>setEd(s.item)}><Icon n="edit" s={14}/> Edit</button></div>}</div>}
    </div>
    <div className="dactions">

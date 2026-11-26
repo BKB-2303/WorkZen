@@ -43,6 +43,7 @@ const P={
  right:<path d="m9 18 6-6-6-6"/>,
  filter:<path d="M22 3H2l8 9.5V19l4 2v-8.5z"/>,
  more:<><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></>,
- list:<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>
+ list:<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>,
+ quote:<><path d="M3 21c3-2 5-5 5-9H4V5h7v7c0 5-3 8-7 10M14 21c3-2 5-5 5-9h-4V5h7v7c0 5-3 8-7 10"/></>
 };
 export default function Icon({n,s=16,f}){return <svg width={s} height={s} viewBox="0 0 24 24" fill={f?'currentColor':'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">{P[n]}</svg>;}

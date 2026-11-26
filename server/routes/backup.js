@@ -24,7 +24,7 @@ r.post('/export',wrap(async(req,res)=>{
  const [tasks,notes,bookmarks]=await Promise.all([
   Task.find({user:u}).sort({createdAt:1}).lean(),Note.find({user:u}).sort({createdAt:1}).lean(),Bookmark.find({user:u}).sort({createdAt:1}).lean()]);
  const out={app:'WorkZen',format:1,exportedAt:new Date().toISOString(),account:{username:req.user.username,name:req.user.name},
-  tasks:tasks.map(t=>({title:t.title,notes:t.notes,project:t.project,priority:t.priority,status:t.status,dueDate:t.dueDate,checklist:t.checklist||[],completedAt:t.completedAt,createdAt:t.createdAt})),
+  tasks:tasks.map(t=>({title:t.title,notes:t.notes,project:t.project,priority:t.priority,status:t.status,startDate:t.startDate||t.dueDate,dueDate:t.dueDate,checklist:t.checklist||[],completedAt:t.completedAt,createdAt:t.createdAt})),
   notes:notes.map(n=>({title:n.title,content:n.content,category:n.category,color:n.color,pinned:n.pinned,createdAt:n.createdAt,updatedAt:n.updatedAt})),
   bookmarks:bookmarks.map(b=>({title:b.title,url:b.url,description:b.description,category:b.category,favorite:b.favorite,visits:b.visits,createdAt:b.createdAt}))};
  if(withPw){
@@ -54,10 +54,11 @@ r.post('/import',wrap(async(req,res)=>{
  for(const t of arr('tasks')){
   const title=s(t?.title,200).trim();if(!title)continue;
   const dueDate=/^\d{4}-\d{2}-\d{2}$/.test(t.dueDate||'')?t.dueDate:today();
+  const startDate=/^\d{4}-\d{2}-\d{2}$/.test(t.startDate||'')&&t.startDate<=dueDate?t.startDate:dueDate;
   const project=s(t.project,60).trim()||'General',k=key(title,dueDate,project);
   if(haveT.has(k)){skipped.tasks++;continue;}haveT.add(k);
   const status=['todo','inprogress','done'].includes(t.status)?t.status:'todo';
-  T.push({user:u,title,notes:s(t.notes,2000),project,priority:['Low','Medium','High'].includes(t.priority)?t.priority:'Medium',status,dueDate,
+  T.push({user:u,title,notes:s(t.notes,2000),project,priority:['Low','Medium','High'].includes(t.priority)?t.priority:'Medium',status,startDate,dueDate,
    checklist:(Array.isArray(t.checklist)?t.checklist:[]).slice(0,50).map(c=>({text:s(c?.text,200),done:!!c?.done})).filter(c=>c.text.trim()),
    completedAt:status==='done'?(date(t.completedAt)||new Date()):null,createdAt:date(t.createdAt)});
  }

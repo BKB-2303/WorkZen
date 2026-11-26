@@ -1,6 +1,6 @@
-import {useEffect,useState} from 'react';import Icon from './Icon.jsx';
-export default function Shell({user,children,nav,bottom,onLogout,onPassword,theme,onTheme,navKey}){
- const [open,setOpen]=useState(false);
+import {useEffect,useState} from 'react';import Icon from './Icon.jsx';import ProfileModal from './ProfileModal.jsx';import UserAvatar from './UserAvatar.jsx';
+export default function Shell({user,children,nav,bottom,onLogout,onPassword,onUserChange,theme,onTheme,navKey}){
+ const [open,setOpen]=useState(false),[profile,setProfile]=useState(false),[current,setCurrent]=useState(user);
  useEffect(()=>{setOpen(false);},[navKey]);
  useEffect(()=>{document.body.style.overflow=open?'hidden':'';return()=>{document.body.style.overflow='';};},[open]);
  return <div className="shell">
@@ -11,13 +11,16 @@ export default function Shell({user,children,nav,bottom,onLogout,onPassword,them
   <aside className={'side'+(open?' open':'')}>
    <div className="brand"><div className="logo">W</div><div><b>WorkZen</b><small>{user.role==='admin'?'Administration':'Plan. Track. Deliver.'}</small></div>
     <button className="iconbtn closeside" aria-label="Close menu" onClick={()=>setOpen(false)}><Icon n="x" s={20}/></button></div>
-   <div className="userbox"><div className="avatar">{(user.name||'U')[0].toUpperCase()}</div>
-    <div className="uinfo"><b>{user.name}</b><small>{user.role.toUpperCase()}</small></div>
+   <div className="userbox"><UserAvatar user={current}/>
+    <div className="uinfo"><b>{current.name}</b><small>{current.role.toUpperCase()}</small></div>
+    <button className="iconbtn" title="Profile settings" aria-label="Profile settings" onClick={()=>setProfile(true)}><Icon n="edit"/></button>
     <button className="iconbtn" title={theme==='dark'?'Light mode':'Dark mode'} onClick={onTheme}><Icon n={theme==='dark'?'sun':'moon'}/></button>
     <button className="iconbtn" title="Change password" onClick={onPassword}><Icon n="key"/></button>
     <button className="iconbtn" title="Log out" onClick={onLogout}><Icon n="power"/></button></div>
    {nav}
   </aside>
   <main className="main">{children}</main>
-  {bottom}</div>;
+  {bottom}
+  {profile&&<ProfileModal user={current} onSave={next=>{setCurrent(next);onUserChange?.(next);}} onClose={()=>setProfile(false)}/>}
+ </div>;
 }

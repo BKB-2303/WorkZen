@@ -14,11 +14,11 @@ export default function Dashboard({user,tasks,onGo,onAdd}){
  return <>
   <div className="phead"><div><h1>{greet}, {user.name.split(' ')[0]}</h1><p className="muted">Here is where your work stands today.</p></div>
    <button className="btn primary" onClick={onAdd}><Icon n="plus"/> Add task</button></div>
-  <div className="stats">{[['Total',s.total,'c-dark'],['To do',s.todo,'c-amber'],['In progress',s.inprogress,'c-blue'],['Done',s.done,'c-green'],['Overdue',s.overdue,'c-red']]
+  <div className="stats">{[['Total',s.total,'c-dark'],['Pending',s.todo,'c-amber'],['In progress',s.inprogress,'c-blue'],['Done',s.done,'c-green'],['Overdue',s.overdue,'c-red']]
    .map(([l,v,c])=><div className="stat" key={l}><small>{l.toUpperCase()}</small><b className={c}>{v}</b></div>)}</div>
   <div className="dgrid">
-   <section className="card c4"><h4>Status overview</h4><div className="donutwrap"><Donut center={rate+'%'} sub="complete" data={[{label:'To do',value:s.todo,color:'#d97706'},{label:'In progress',value:s.inprogress,color:'#2563eb'},{label:'Done',value:s.done,color:'#059669'}]}/>
-    <ul className="legend"><li><i style={{background:'#d97706'}}/>To do <b>{s.todo}</b></li><li><i style={{background:'#2563eb'}}/>In progress <b>{s.inprogress}</b></li><li><i style={{background:'#059669'}}/>Done <b>{s.done}</b></li></ul></div></section>
+   <section className="card c4"><h4>Status overview</h4><div className="donutwrap"><Donut center={rate+'%'} sub="complete" data={[{label:'Pending',value:s.todo,color:'#d97706'},{label:'In progress',value:s.inprogress,color:'#2563eb'},{label:'Done',value:s.done,color:'#059669'}]}/>
+    <ul className="legend"><li><i style={{background:'#d97706'}}/>Pending <b>{s.todo}</b></li><li><i style={{background:'#2563eb'}}/>In progress <b>{s.inprogress}</b></li><li><i style={{background:'#059669'}}/>Done <b>{s.done}</b></li></ul></div></section>
    <section className="card c4"><h4>Open tasks by priority</h4>{open.length?<HBars rows={prio}/>:<p className="muted">Nothing open.</p>}</section>
    <section className="card c4"><h4>Open tasks by project</h4>{proj.length?<HBars rows={proj}/>:<p className="muted">No open tasks.</p>}</section>
    <section className="card c7"><div className="chead"><h4>Due soon</h4><button className="link" onClick={()=>onGo('upcoming')}>View upcoming</button></div>
